@@ -78,6 +78,7 @@ private:
     std::vector<float>       transientEnv;
 
     juce::SmoothedValue<float> colorSm, amountSm, mixSm, outputSm, formantSm, gammaSm, gateSm;
+    juce::SmoothedValue<float> colourGain; // master colour fade (0 when no grid -> stops on note-off)
 
     std::atomic<float>        uiMidiActivity { 0.0f };
     std::atomic<float>        uiTransientFlash { 0.0f };

@@ -57,6 +57,8 @@ void NSColourMapAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
     for (auto* s : { &colorSm, &amountSm, &mixSm, &outputSm, &gammaSm, &gateSm })
         s->reset (currentSampleRate, ramp);
     formantSm.reset (currentSampleRate, 0.06);
+    colourGain.reset (currentSampleRate, 0.08);          // ~80 ms colour fade in/out
+    colourGain.setCurrentAndTargetValue (0.0f);
 
     colorSm.setCurrentAndTargetValue   (getValue (parameters, params::color));
     amountSm.setCurrentAndTargetValue  (getValue (parameters, params::amount));
@@ -133,12 +135,41 @@ void NSColourMapAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     else if (modeIdx == 2) mask = (juce::uint16) (scaleMask | midiMask); // Hybrid
     // Scale (0) and UI (3) use the scale mask.
 
-    fillTargetNotes (targets, mask, shift, maxVoices);
+    // The grid is "active" when there are target notes. When MIDI notes are
+    // released (and Freeze is off) the mask becomes 0; we keep the last targets
+    // for the fade and let colourGain ramp to 0 so the colour stops smoothly.
+    const bool hasGrid = (mask != 0);
+    if (hasGrid)
+        fillTargetNotes (targets, mask, shift, maxVoices);
+    colourGain.setTargetValue (hasGrid ? 1.0f : 0.0f);
     colourCore.setTargets (targets, maxVoices);
 
     uiHeldMask.store (midiMask);
-    uiTargetMask.store (mask);
-    uiVoiceCount.store (colourCore.getActiveVoiceCount());
+    uiTargetMask.store (hasGrid ? mask : 0);
+    uiVoiceCount.store (hasGrid ? colourCore.getActiveVoiceCount() : 0);
+
+    // ── Idle: nothing to colour and the fade has finished -> pass dry through ──
+    if (! hasGrid && colourGain.getCurrentValue() < 5.0e-4f)
+    {
+        colourGain.setCurrentAndTargetValue (0.0f);
+        for (int s = 0; s < numSamples; ++s)
+        {
+            const float g = outputSm.getNextValue();
+            for (int ch = 0; ch < numCh; ++ch)
+                buffer.setSample (ch, s, buffer.getSample (ch, s) * g);
+        }
+        float* out[2];
+        for (int ch = 0; ch < numCh; ++ch) out[ch] = buffer.getWritePointer (ch);
+        limiter.process (out, numCh, numSamples);
+
+        // keep block-rate smoothers moving so they are correct when we resume
+        colorSm.skip (numSamples); amountSm.skip (numSamples); gateSm.skip (numSamples);
+        formantSm.skip (numSamples); gammaSm.skip (numSamples); mixSm.skip (numSamples);
+        uiInputEnergy.store (0.0f); uiTunedEnergy.store (0.0f); uiColoredEnergy.store (0.0f);
+        uiTransientFlash.store (0.0f);
+        uiMidiActivity.store (juce::jmax (0.0f, uiMidiActivity.load() - 0.03f));
+        return;
+    }
 
     // ── Affected range split ──────────────────────────────────────────────────
     affectedRange.setRange (lowCutHz, highCutHz);
@@ -209,13 +240,14 @@ void NSColourMapAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     {
         const float mix   = mixSm.getNextValue();
         const float outGn = outputSm.getNextValue();
+        const float cg    = colourGain.getNextValue();                   // fades the colour out on note-off
         const float tg    = juce::jlimit (0.0f, 1.0f, transientEnv[(size_t) s] * transAmt);
 
         for (int ch = 0; ch < numCh; ++ch)
         {
             const float act  = active[ch][s];
             const float proc = tuned[ch][s] + tg * (act - tuned[ch][s]); // attacks pass dry
-            float outSample  = dry[ch][s] + mix * (proc - act);          // out-of-range stays dry
+            float outSample  = dry[ch][s] + mix * cg * (proc - act);     // out-of-range stays dry
             outSample *= outGn;
             buffer.setSample (ch, s, outSample);
         }

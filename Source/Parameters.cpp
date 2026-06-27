@@ -59,7 +59,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     p.push_back (std::make_unique<APB> (juce::ParameterID { sideMute, 1 }, "Side Mute", false));
     p.push_back (std::make_unique<APC> (juce::ParameterID { key, 1 }, "Key", keyNames(), 0));
     p.push_back (std::make_unique<APC> (juce::ParameterID { scale, 1 }, "Scale", scaleNames(), 7)); // Minor Pentatonic
-    p.push_back (std::make_unique<APB> (juce::ParameterID { midiFreeze, 1 }, "Freeze", true));
+    p.push_back (std::make_unique<APB> (juce::ParameterID { midiFreeze, 1 }, "Freeze", false));
     p.push_back (std::make_unique<APC> (juce::ParameterID { quality, 1 }, "Quality", qualityNames(), 0)); // 0 Latency
 
     p.push_back (std::make_unique<APF> (juce::ParameterID { mix, 1 }, "Mix",

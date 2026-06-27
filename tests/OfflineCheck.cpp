@@ -129,5 +129,52 @@ int main()
     const bool changed = diffR > 0.10 * inR;
     const bool tonal   = inAvg > 1.5 * offAvg;
     printf ("\nCHANGED=%d TONAL=%d\n", changed, tonal);
+
+    // ── MIDI note-off must stop the colour (Freeze off) ───────────────────────
+    {
+        NSColourMapAudioProcessor mp;
+        mp.prepareToPlay (sr, block);
+        auto& ms = mp.getState();
+        setP (ms, nscm::params::mode,       1.0f); // MIDI Grid
+        setP (ms, nscm::params::character,  1.0f);
+        setP (ms, nscm::params::midiFreeze, 0.0f); // off -> release should stop
+        setP (ms, nscm::params::color,      1.0f);
+        setP (ms, nscm::params::mix,        1.0f);
+        setP (ms, nscm::params::transient,  0.0f);
+
+        std::vector<float> mIn, mOut;
+        long ph = 0; int d = 0;
+        while (d < N)
+        {
+            const int n = std::min (block, N - d);
+            juce::AudioBuffer<float> buf (2, n);
+            for (int i = 0; i < n; ++i)
+            {
+                const double t = std::fmod ((double) (ph++) * 110.0 / sr, 1.0);
+                const float saw = (float) (2.0 * t - 1.0) * 0.3f;
+                buf.getWritePointer (0)[i] = saw; buf.getWritePointer (1)[i] = saw;
+            }
+            juce::MidiBuffer mb;
+            if (d == 0) mb.addEvent (juce::MidiMessage::noteOn (1, 48, (juce::uint8) 100), 0);  // hold C3
+            if (d <= N / 2 && d + n > N / 2) mb.addEvent (juce::MidiMessage::noteOff (1, 48), 0); // release at half
+            for (int i = 0; i < n; ++i) mIn.push_back (buf.getReadPointer (0)[i]);
+            mp.processBlock (buf, mb);
+            for (int i = 0; i < n; ++i) mOut.push_back (buf.getReadPointer (0)[i]);
+            d += n;
+        }
+        // held quarter (note on) vs released quarter (well after note-off)
+        auto diffPct = [&] (int a, int b) {
+            double di = 0, ii = 0;
+            for (int i = a; i < b; ++i) { const double e = mOut[(size_t) i] - mIn[(size_t) i]; di += e * e; ii += (double) mIn[(size_t) i] * mIn[(size_t) i]; }
+            return 100.0 * std::sqrt (di / (b - a)) / (std::sqrt (ii / (b - a)) + 1e-9);
+        };
+        const double heldDiff     = diffPct (N / 4, N / 2);          // colour active
+        const double releasedDiff = diffPct (3 * N / 4, N);         // should be ~0
+        printf ("\n[MIDI release] held diff: %.1f%%   released diff: %.1f%%\n", heldDiff, releasedDiff);
+        const bool stops = releasedDiff < 3.0 && heldDiff > 15.0;
+        printf ("MIDI_STOPS_ON_RELEASE=%d\n", stops);
+        if (! stops) return 1;
+    }
+
     return (changed && tonal) ? 0 : 1;
 }
