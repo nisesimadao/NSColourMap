@@ -1,63 +1,72 @@
-# DSP Notes
+# DSP Notes (v0.5)
 
-All DSP classes live in `Source/dsp/` as header-only, UI-free, allocation-free
-(on the audio thread) units. Each is usable without the plugin.
+All DSP lives in `Source/dsp/` as header-only, UI-free, audio-thread-safe units.
+The music-theory and colour-core classes carry no JUCE dependency so they are
+tested standalone in `tests/DspSmoke.cpp`.
 
-## Signal flow (spec §13.1)
+## Signal flow (spec §12.1)
 
 ```
 Audio In
- → copy to dryBuf (original)
- → SubSplitter (Linkwitz-Riley LR4)  ──► low band  (protected, stays dry)
-                                      └─► high band (processed)
-       high → dryHighBuf (kept for transient return + dry/wet)
-       high → TransientDetector  (fills 0..1 envelope)
-       high → ResonatorBank → ColourProcessor → PseudoFormantTone
- → per-sample combine:
-       effHigh = dryHigh + amount * (wetHigh - dryHigh)      (effect depth)
-       effHigh = effHigh + tGain * (dryHigh - effHigh)       (transient bypass)
-       wet     = low + effHigh                               (sub protected)
-       out     = dryFull + mix * (wet - dryFull)             (dry/wet)
-       out    *= outputGain
- → SafetyLimiter (soft tanh knee) → Audio Out
+ → copy to dryBuf
+ → AffectedRange (LR4 highpass @ lowCut + lowpass @ highCut) → activeBuf
+       active → dryActive copy (kept) + tunedBuf copy
+       active → TransientDetector → 0..1 envelope
+ → ColourMappingCore(tunedBuf, dryActive):
+       ResonatorBank (grid-tuned SVF) → ColourProcessor (drive/emphasis/width)
+       → ENERGY MATCH tuned level to input → blend dry→tuned by amount·COLOR
+       → + colourful tail for COLOR>100% → Gate ducks tail when input is quiet
+ → PseudoFormantTone (Formant + Gamma)
+ → optional Side Mute (collapse processed band to mono)
+ → per-sample: transient restore, then  out = dry + Mix·(processed − active)
+ → Output gain → SafetyLimiter → Audio Out
 ```
 
-Because the protected low band appears identically in both the dry and the wet
-signal, the Mix control never thins the sub — that is the Sub Protect guarantee.
+`out = dry + Mix·(processed − active)` means everything outside [lowCut, highCut]
+(including the protected sub) passes through untouched, and Mix only controls how
+much of the *transformation* is applied.
+
+## Why it is audible (the key fix)
+
+The v0.3 build summed high-Q bandpass voices normalised by 1/√N — far quieter than
+the dry — so the effect was inaudible. `ColourMappingCore` now **energy-matches**
+the tuned signal to the input (per-channel envelope followers compute a smoothed
+gain so the wet tracks the input's loudness, clamped ≤ 12×). Verified by the
+audibility test: broadband noise tuned to A4 concentrates energy ~hundreds× at
+440 Hz while output RMS stays ≈ input RMS.
+
+## COLOR 0-200%
+
+- `color01 = min(COLOR, 1)` blends dry → tuned (Chroma "add colour" range).
+- `colorBoost = max(COLOR − 1, 0)` raises resonator Q (tail), saturation drive and
+  adds an extra resonance layer (PITCHMAP-style "more electronic" range).
 
 ## Classes
 
 | Class | Role |
 |---|---|
-| `ScaleNoteSet` | Key + scale → 12-bit pitch-class mask |
-| `MidiChordState` | Note on/off tracking, Freeze Last Chord, live/frozen masks |
-| `TargetNoteGenerator` | Pitch-class mask → octave-expanded target frequencies (≤32) |
-| `SubSplitter` | `juce::dsp::LinkwitzRileyFilter` LR4 crossover |
-| `TransientDetector` | Fast/slow envelope difference → 0..1 transient envelope |
-| `ResonatorBank` / `SvfResonator` | TPT state-variable bandpass voices, glide, drive, stereo detune, `1/√N` normalisation |
+| `ScaleNoteSet` | Key + scale → 12-bit pitch-class mask (12 scales incl. Whole Tone, Chromatic) |
+| `MidiChordState` | MIDI note tracking, Freeze last chord |
+| `TargetNoteGenerator` | Mask → octave-expanded target frequencies (≤32), Scale Shift |
+| `AffectedRange` | LR4 band split for the processed range / protected remainder |
+| `TransientDetector` | Fast/slow envelope difference → transient envelope |
+| `ResonatorBank` / `SvfResonator` | TPT SVF bandpass voices, glide, drive, stereo detune |
 | `ColourProcessor` | High-shelf emphasis, saturation, harmonic density, M/S width |
-| `PseudoFormantTone` | 3 movable peak biquads + tilt; centre = `base · 2^(st/12)` |
-| `SafetyLimiter` | Soft-knee tanh clip guard above 0.98 |
-| `AlgoModes` | Per-algorithm tuning table (Clean/Colour/Hyper/HiTECH/Broken) |
+| `ColourMappingCore` | Resonators + colour + **energy match** + blend + gate (the audible core) |
+| `PseudoFormantTone` | Movable peak biquads + tilt (Formant/Gamma), not a real shifter |
+| `SafetyLimiter` | Soft-knee tanh clip guard |
+| `CharacterModes` | Per-character tuning table (Clean/Color/Hyper/Alien/Glitch) |
 
-## Algorithms are tuning modes, not engines (spec §18.6)
+## Grid modes
 
-`AlgoModes.h` holds one `AlgoProfile` per algorithm. Each block, the profile is
-combined with the live macros to produce `ResonatorBank::Tuning` and
-`ColourProcessor::Settings`. HiTECH/Broken mainly shorten Glide
-(`glideScale`) and bias Transient up/down; they do not switch DSP paths.
+- **Scale** — pitch grid = `ScaleNoteSet(key, scale)`.
+- **MIDI** — grid = held chord pitch classes (Freeze keeps the last chord).
+- **Hybrid** — union of scale ∪ MIDI (stay in key, emphasise played notes).
+- **UI** — MVP uses the scale grid (UI keyboard editing is v1+).
 
-## Audio-thread rules
+## MVP simplifications
 
-No allocation, locks, logging or file I/O on the audio thread. Scratch buffers
-(`dryBuf`, `lowBuf`, `highBuf`, `dryHighBuf`, `transientEnv`) are sized once in
-`prepareToPlay`. Macros are smoothed with `juce::SmoothedValue`; resonator
-frequencies are smoothed per block by the Glide one-pole.
-
-## Known simplifications (MVP)
-
-- Resonator coefficients update per block (not per sample); Glide is block-rate.
-- The Colour "harmonic density" is a light asymmetric term, not a full exciter.
-- `PseudoFormantTone` is a movable-peak tone shaper, **not** a phase-vocoder
-  formant shifter (spec §20.3).
-- `SpectrumMapView` is diagnostic only; it does not do spectral analysis.
+- Resonator coefficients update per block; glide is internal (~30 ms × character).
+- Morph / Multirate are present as parameters but light/placeholder (spec v1).
+- Gamma feeds the pseudo-formant emphasis; Gate ducks the tail with input level.
+- `VisualizerView` is diagnostic only — no real spectral analysis (spec §6.5).

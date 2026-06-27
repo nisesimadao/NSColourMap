@@ -1,45 +1,43 @@
-# ClaudeCode Task Log
+# ClaudeCode Task Log (v0.5 redesign)
 
-Implementation status against the phases in `NSColourMap_Spec.md` (§25).
+Status against the phases in `NSColourMap_Spec.md` (v0.5 §18).
 
 ## Done (MVP)
 
-- **Phase 0 — Repository setup**: CMake project `NSColourMap`, VST3 + AU, MIDI input
-  enabled, JUCE 8.0.14 via FetchContent. Builds with an empty-to-full UI.
-- **Phase 1 — Parameters + state**: `Source/Parameters.*` APVTS layout for mode,
-  algo, amount, glide, colour, formant, subProtect, transient, mix, output,
-  freezeChord, key, scale, scaleShift, quality, uiTab. Save/restore via XML.
-- **Phase 2 — MIDI foundation**: `MidiChordState` (note on/off, lowest note,
-  Freeze Last Chord, live/frozen masks). Header LED + active-chord text.
-- **Phase 3 — Scale Resonance foundation**: `ScaleNoteSet` (10 scales) +
-  `TargetNoteGenerator` (octave-expanded targets, Scale Shift). Mode switch.
-- **Phase 4 — Sub split + transient bypass**: `SubSplitter` (LR4) +
-  `TransientDetector`; protected sub stays dry, transients pass through.
-- **Phase 5 — Resonator Bank**: `ResonatorBank` of TPT SVF bandpass voices with
-  glide, drive, stereo detune and `1/√N` normalisation; quality = voice count.
-- **Phase 6 — UI MVP 1**: header, MIDI LED, mode/algo selectors, macro knobs,
-  responsive layout, preserved NSDucking look & feel.
-- **Phase 7 — Colour + Pseudo Formant + Algo tuning**: `ColourProcessor`,
-  `PseudoFormantTone`, `AlgoModes` (Clean/Colour/Hyper/HiTECH/Broken as tuning).
-- **Phase 8 (partial) — UI MVP 2/3**: `KeyboardView` (target + held highlights),
-  `SpectrumMapView` (diagnostic pitch lanes, sub zone, transient flash, energy).
+- **Phase 0 — Legacy-free setup**: dropped the resonator-only framing; kept Sub
+  protection (Low Cut), Transient, MIDI LED. New AGENTS/README/docs.
+- **Phase 1 — Minimal plugin**: VST3 + AU audio effect, MIDI input, stereo, APVTS.
+- **Phase 2 — Key / Scale / MIDI grid**: `ScaleNoteSet` (12 scales),
+  `MidiChordState`, `TargetNoteGenerator`, Scale Shift, Freeze, MIDI LED.
+- **Phase 3 — Affected range + safety**: `AffectedRange` (LR4 Low/High Cut),
+  protected remainder, `SafetyLimiter`, output gain.
+- **Phase 4 — Colour Mapping Core**: `ColourMappingCore` — grid-tuned resonators,
+  **energy-matched to input** (audible), COLOR 0-200% (dry/wet + resonance/tail),
+  Amount / Mix. This is the headline fix vs the inaudible v0.3 build.
+- **Phase 5 — Visualizer**: `VisualizerView` shows DRY / TUNED / COLORED, target
+  lanes, affected range, protected zones, MIDI markers, transient flash.
+- **Phase 6 — Character modes**: Clean / Color / Hyper / Alien / Glitch
+  (`CharacterModes`, tuning over the same DSP).
+- **Phase 7 — Pseudo formant + transient**: `PseudoFormantTone` (Formant + Gamma),
+  `TransientDetector` restore.
 
 ## Tests
 
-- `tests/DspSmoke.cpp` — header-only checks for `ScaleNoteSet`, `MidiChordState`,
-  `TargetNoteGenerator` (relative-minor equality, freeze behaviour, A440, ordering).
-  Run via `ctest --test-dir build`.
+- `tests/DspSmoke.cpp` — `ScaleNoteSet` / `MidiChordState` / `TargetNoteGenerator`
+  checks **plus a colour-core audibility test**: broadband noise tuned to A4 must
+  stay as loud as the input and concentrate energy onto 440 Hz (stable SVF-bandpass
+  measurement). Run via `ctest --test-dir build`. AU passes `auval -v aumf Nscm Nscm`.
 
-## Done (v1)
+## Partial / placeholder
 
-- **Phase 9 — Presets**: 10 factory presets (`Source/Presets.h`, spec §23 / §27)
-  selectable from the header preset menu; applied via APVTS.
-- **Snapshot A/B/C/D**: full-state store / recall (`Source/PluginProcessor` snapshot
-  API). Click stores empty / recalls filled, Alt-click overwrites. Persisted in the
-  plugin state via a wrapped `NSColourMapState` XML (backward compatible).
+- **Phase 8 (Chroma advanced)**: Gate functional; Gamma feeds the formant shaper;
+  Side Mute collapses the processed band to mono; Morph / Multirate are parameters
+  with light/placeholder behaviour. Custom scales JSON: not yet.
 
-## Next (v1+)
+## Next
 
-- Auto gain, advanced parameter UI (Resonance/Decay/Drive/Width), CPU quality polish.
-- Instrument-compatible build for DAWs that can't route MIDI into FX (spec §8.2).
-- v2: STFT pitch-class mapper, custom map mode, convolution IR, glitch sequencer.
+- Phase 8 proper: spectral-ish Morph, true Multirate, Side-band mute, custom scales.
+- v1: UI keyboard click-to-set-root / temporary grid; affected-range drag on the
+  visualizer; presets expansion.
+- Phase 9 / v2: STFT/CQT pitch-class mapper, magnitude morph, spectral gate per bin,
+  custom grid editor.

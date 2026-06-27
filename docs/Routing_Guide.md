@@ -5,7 +5,7 @@ effect and not an instrument, so the chord MIDI has to be routed *into* the audi
 track that hosts the plugin. Each DAW does this differently.
 
 If the **MIDI LED** in the plugin header never lights up, MIDI is not reaching the
-plugin — fall back to **Scale Resonance Mode** (set Key + Scale) which needs no MIDI.
+plugin — fall back to **Scale Grid mode** (set Key + Scale) which needs no MIDI.
 
 ## Ableton Live
 1. Put NSColourMap on the **audio track** with your bass/noise.
@@ -29,13 +29,13 @@ plugin — fall back to **Scale Resonance Mode** (set Key + Scale) which needs n
 
 ## Logic Pro (AU)
 Logic does not route MIDI into audio-effect plugins easily. Options:
-- Use **Scale Resonance Mode** (no MIDI needed), or
+- Use **Scale Grid mode** (no MIDI needed), or
 - Place NSColourMap where MIDI is available (e.g. via an instrument-style routing
   / external MIDI environment), or
 - Use a future **Instrument-compatible build** (planned, spec §8.2).
 
-## No MIDI? Use Scale Resonance Mode
-1. Set **Mode → Scale Resonance**.
+## No MIDI? Use Scale Grid mode
+1. Set **Grid Mode → Scale**.
 2. Pick **Key** and **Scale** (Minor Pentatonic / Pentatonic Blues / Natural Minor
    are good for Colour Bass).
 3. Use **Scale Shift** to move the resonance up/down by semitones.

@@ -1,19 +1,17 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
-#include <array>
 #include <atomic>
 #include <vector>
 
 #include "Parameters.h"
-#include "dsp/AlgoModes.h"
+#include "dsp/CharacterModes.h"
 #include "dsp/MidiChordState.h"
 #include "dsp/ScaleNoteSet.h"
 #include "dsp/TargetNoteGenerator.h"
-#include "dsp/SubSplitter.h"
+#include "dsp/AffectedRange.h"
 #include "dsp/TransientDetector.h"
-#include "dsp/ResonatorBank.h"
-#include "dsp/ColourProcessor.h"
+#include "dsp/ColourMappingCore.h"
 #include "dsp/PseudoFormantTone.h"
 #include "dsp/SafetyLimiter.h"
 
@@ -37,7 +35,7 @@ public:
     bool acceptsMidi() const override { return true; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
-    double getTailLengthSeconds() const override { return 0.5; }
+    double getTailLengthSeconds() const override { return 1.0; }
 
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
@@ -50,18 +48,15 @@ public:
 
     APVTS& getState() { return parameters; }
 
-    // ── Snapshots A/B/C/D (message-thread only) ───────────────────────────────
-    static constexpr int kNumSnapshots = 4;
-    void storeSnapshot (int index);
-    bool recallSnapshot (int index);
-    bool isSnapshotFilled (int index) const;
-
     // ── UI state (lock-free) ──────────────────────────────────────────────────
-    float getMidiActivity()    const noexcept { return uiMidiActivity.load(); }
-    float getTransientFlash()  const noexcept { return uiTransientFlash.load(); }
-    float getInputEnergy()     const noexcept { return uiInputEnergy.load(); }
+    float getMidiActivity()   const noexcept { return uiMidiActivity.load(); }
+    float getTransientFlash() const noexcept { return uiTransientFlash.load(); }
+    float getInputEnergy()    const noexcept { return uiInputEnergy.load(); }
+    float getTunedEnergy()    const noexcept { return uiTunedEnergy.load(); }
+    float getColoredEnergy()  const noexcept { return uiColoredEnergy.load(); }
     int   getActiveVoiceCount() const noexcept { return uiVoiceCount.load(); }
-    float getSubProtectHz()    const noexcept { return uiSubHz.load(); }
+    float getLowHz()  const noexcept { return uiLowHz.load(); }
+    float getHighHz() const noexcept { return uiHighHz.load(); }
     juce::uint32 getTargetMask() const noexcept { return uiTargetMask.load(); }
     juce::uint32 getHeldMask()   const noexcept { return uiHeldMask.load(); }
 
@@ -72,27 +67,26 @@ private:
     double currentSampleRate = 44100.0;
 
     nscm::MidiChordState    chordState;
-    nscm::SubSplitter       subSplitter;
+    nscm::AffectedRange     affectedRange;
     nscm::TransientDetector transientDetector;
-    nscm::ResonatorBank     resonatorBank;
-    nscm::ColourProcessor   colourProcessor;
+    nscm::ColourMappingCore colourCore;
     nscm::PseudoFormantTone formantTone;
     nscm::SafetyLimiter     limiter;
     nscm::TargetNoteList    targets;
 
-    juce::AudioBuffer<float> dryBuf, lowBuf, highBuf, dryHighBuf;
+    juce::AudioBuffer<float> dryBuf, activeBuf, tunedBuf;
     std::vector<float>       transientEnv;
 
-    std::array<juce::ValueTree, kNumSnapshots> snapshots;
-
-    // Smoothed macros
-    juce::SmoothedValue<float> mixSmoothed, outputSmoothed, amountSmoothed, colourSmoothed, formantSmoothed;
+    juce::SmoothedValue<float> colorSm, amountSm, mixSm, outputSm, formantSm, gammaSm, gateSm;
 
     std::atomic<float>        uiMidiActivity { 0.0f };
     std::atomic<float>        uiTransientFlash { 0.0f };
     std::atomic<float>        uiInputEnergy { 0.0f };
+    std::atomic<float>        uiTunedEnergy { 0.0f };
+    std::atomic<float>        uiColoredEnergy { 0.0f };
     std::atomic<int>          uiVoiceCount { 0 };
-    std::atomic<float>        uiSubHz { 120.0f };
+    std::atomic<float>        uiLowHz { 100.0f };
+    std::atomic<float>        uiHighHz { 6000.0f };
     std::atomic<juce::uint32> uiTargetMask { 0 };
     std::atomic<juce::uint32> uiHeldMask { 0 };
 
