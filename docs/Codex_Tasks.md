@@ -34,6 +34,17 @@ Status against the phases in `NSColourMap_Spec.md` (v0.5 §18).
   Side Mute collapses the processed band to mono; Morph / Multirate are parameters
   with light/placeholder behaviour. Custom scales JSON: not yet.
 
+## Shine pass (post-MVP texture)
+
+- Grid OSCILLATOR layer (synthesises in-key tones from any source) — the main
+  audible fix after the resonator-only build read as "no change."
+- Resonator octave-up "air" resonance, oscillator octave **shimmer** with a slow
+  LFO detune, and a `ColourProcessor` air shelf. Character profiles carry
+  `air` / `shimmer`; Hyper/Alien are the brilliant ones.
+- Fixed a real bug: COLOR/Amount/Formant/Gamma/Gate smoothers were never advanced
+  (knobs were inert). Verified the full chain with the `NSColourMap_OfflineCheck`
+  harness (out/in diff RMS, in/off-scale tonality, HF brightness).
+
 ## Next
 
 - Phase 8 proper: spectral-ish Morph, true Multirate, Side-band mute, custom scales.
