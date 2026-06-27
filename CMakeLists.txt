@@ -81,3 +81,21 @@ set_target_properties(NSColourMap_SmokeTest PROPERTIES
 )
 enable_testing()
 add_test(NAME SmokeTest COMMAND NSColourMap_SmokeTest)
+
+# ── Offline full-chain check (compiles the real processor with JUCE) ─────────
+add_executable(NSColourMap_OfflineCheck
+    tests/OfflineCheck.cpp
+    Source/PluginProcessor.cpp
+    Source/PluginEditor.cpp
+    Source/Parameters.cpp)
+target_include_directories(NSColourMap_OfflineCheck PRIVATE Source)
+target_compile_definitions(NSColourMap_OfflineCheck PRIVATE
+    JUCE_STANDALONE_APPLICATION=1
+    JucePlugin_Name="NSColourMap"
+    JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+target_link_libraries(NSColourMap_OfflineCheck PRIVATE
+    juce::juce_audio_utils
+    juce::juce_audio_processors
+    juce::juce_dsp
+    juce::juce_gui_basics
+    juce::juce_recommended_config_flags)

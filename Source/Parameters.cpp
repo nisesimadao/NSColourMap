@@ -17,13 +17,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     p.push_back (std::make_unique<APC> (juce::ParameterID { mode, 1 }, "Grid Mode", modeNames(), 0));        // Scale
     p.push_back (std::make_unique<APC> (juce::ParameterID { character, 1 }, "Character", characterNames(), 1)); // Color
 
-    // Big COLOR — 0..200%.
+    // Big COLOR — 0..200%. Default high enough that the effect is obvious out of the box.
     p.push_back (std::make_unique<APF> (juce::ParameterID { color, 1 }, "COLOR",
-        juce::NormalisableRange<float> { 0.0f, 2.0f, 0.001f }, 0.65f,
+        juce::NormalisableRange<float> { 0.0f, 2.0f, 0.001f }, 0.90f,
         Attr().withLabel ("%").withStringFromValueFunction (percentString)));
 
     p.push_back (std::make_unique<APF> (juce::ParameterID { amount, 1 }, "Amount",
-        juce::NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.70f,
+        juce::NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.85f,
         Attr().withLabel ("%").withStringFromValueFunction (percentString)));
 
     p.push_back (std::make_unique<APF> (juce::ParameterID { scaleShift, 1 }, "Scale Shift",
@@ -63,7 +63,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     p.push_back (std::make_unique<APC> (juce::ParameterID { quality, 1 }, "Quality", qualityNames(), 0)); // 0 Latency
 
     p.push_back (std::make_unique<APF> (juce::ParameterID { mix, 1 }, "Mix",
-        juce::NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.65f,
+        juce::NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.78f,
         Attr().withLabel ("%").withStringFromValueFunction (percentString)));
 
     p.push_back (std::make_unique<APF> (juce::ParameterID { output, 1 }, "Output",

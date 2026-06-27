@@ -32,10 +32,13 @@ public:
 
     void process (float* const* channels, int numChannels, int numSamples, const Settings& s) noexcept
     {
-        const float shelfGain = 1.0f + (s.highEmph + s.colour) * 1.6f;       // high shelf boost
-        const float satDrive  = 1.0f + (s.drive + s.colour * 0.6f) * 4.0f;    // saturation
+        // Keep this stage gentle: heavy saturation on the summed resonator output
+        // creates intermodulation mush that masks the pitch-grid tones. Per-voice
+        // drive in the ResonatorBank does the musical harmonic work instead.
+        const float shelfGain = 1.0f + s.highEmph * 0.8f;                    // high shelf boost
+        const float satDrive  = 1.0f + s.drive * 1.2f;                       // light saturation
         const float satComp   = 1.0f / std::sqrt (satDrive);
-        const float density   = s.colour * 0.25f;                            // even-harmonic add
+        const float density   = s.colour * 0.06f;                           // subtle even-harmonic add
 
         for (int ch = 0; ch < numChannels && ch < 2; ++ch)
         {
