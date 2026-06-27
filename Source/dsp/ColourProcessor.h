@@ -21,10 +21,15 @@ public:
         lpCoeff  = std::exp (-twoPi * 1200.0f / sampleRate);
         // Higher split for the "air" shelf (~3.8 kHz) — sparkle / brilliance.
         airCoeff = std::exp (-twoPi * 3800.0f / sampleRate);
+        harshRel = std::exp (-1.0f / (0.020f * sampleRate)); // ~20 ms de-harsh release
         reset();
     }
 
-    void reset() noexcept { lpState.fill (0.0f); airState.fill (0.0f); }
+    void reset() noexcept
+    {
+        lpState.fill (0.0f); airState.fill (0.0f);
+        harshEnv.fill (0.0f); harshGain.fill (1.0f);
+    }
 
     struct Settings
     {
@@ -45,12 +50,15 @@ public:
         const float satComp   = 1.0f / std::sqrt (satDrive);
         const float density   = s.colour * 0.06f;                           // subtle even-harmonic add
         const float airGain   = s.air * 3.0f;                               // air shelf boost (shine)
+        constexpr float harshThresh = 0.22f;                                // de-harsh band ceiling
 
         for (int ch = 0; ch < numChannels && ch < 2; ++ch)
         {
             float* data = channels[ch];
             float& lp   = lpState[(std::size_t) ch];
             float& ap   = airState[(std::size_t) ch];
+            float& he   = harshEnv[(std::size_t) ch];
+            float& hg   = harshGain[(std::size_t) ch];
 
             for (int s2 = 0; s2 < numSamples; ++s2)
             {
@@ -61,7 +69,7 @@ public:
                 const float high = x - lp;
                 x = lp + high * shelfGain;
 
-                // Gentle saturation.
+                // Gentle saturation (tanh = bounded, smooth, no hard clipping).
                 x = std::tanh (x * satDrive) * satComp;
 
                 // Subtle harmonic density (asymmetric -> even harmonics).
@@ -71,7 +79,16 @@ public:
                 if (airGain > 0.0f)
                 {
                     ap = x + airCoeff * (ap - x);  // ap tracks lows; x-ap = highs
-                    x += airGain * (x - ap);
+                    const float airHigh = x - ap;
+
+                    // Dynamic de-harsher: compress the air band only when it gets hot
+                    // (research: dynamic cut ~6-8 kHz is what keeps brilliance un-harsh).
+                    const float a = std::abs (airHigh);
+                    he = a > he ? a : a + harshRel * (he - a);
+                    const float gTarget = he > harshThresh ? harshThresh / he : 1.0f;
+                    hg = gTarget < hg ? gTarget : gTarget + harshRel * (hg - gTarget);
+
+                    x = ap + airHigh * (1.0f + airGain) * hg;
                 }
 
                 data[s2] = x;
@@ -96,7 +113,7 @@ public:
 
 private:
     float sampleRate = 44100.0f;
-    float lpCoeff = 0.0f, airCoeff = 0.0f;
-    std::array<float, 2> lpState {}, airState {};
+    float lpCoeff = 0.0f, airCoeff = 0.0f, harshRel = 0.0f;
+    std::array<float, 2> lpState {}, airState {}, harshEnv {}, harshGain {};
 };
 } // namespace nscm

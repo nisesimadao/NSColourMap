@@ -36,6 +36,8 @@ public:
         envCoeff  = std::exp (-1.0f / (0.008f * sampleRate)); // ~8 ms drive envelope
         matchCoef = std::exp (-1.0f / (0.012f * sampleRate));
         gateCoeff = std::exp (-1.0f / (0.040f * sampleRate));
+        fastCoef  = std::exp (-1.0f / (0.002f * sampleRate)); // ~2 ms (morph contour)
+        slowCoef  = std::exp (-1.0f / (0.030f * sampleRate)); // ~30 ms (makeup)
         reset();
     }
 
@@ -48,6 +50,7 @@ public:
         lfoPhase = 0.0f;
         driveEnv = 0.0f;
         inEnv.fill (0.0f); wetEnv.fill (0.0f); matchGain.fill (1.0f); gateGain.fill (1.0f);
+        fastInEnv.fill (0.0f); procEnv.fill (0.0f);
     }
 
     void setTargets (const TargetNoteList& list, int maxVoices) noexcept
@@ -67,6 +70,7 @@ public:
         float colorBoost = 0.0f;
         float amount     = 0.70f;
         float gate       = 0.0f;
+        float morph      = 0.0f; // imprint the dry's fast contour onto the wet (transient preserve / tail control)
         CharacterProfile profile {};
     };
 
@@ -160,10 +164,11 @@ public:
         cs.highEmph = prof.highEmph;
         colour.process (tuned, numChannels, numSamples, cs);
 
-        // ── Energy match + blend + gate ───────────────────────────────────────
+        // ── Energy match + morph + blend + gate + loudness makeup ─────────────
         const float intensity = clampf (s.color01 * prof.colorResponse * (0.55f + 0.45f * s.amount), 0.0f, 1.0f);
         const float boostAdd  = s.colorBoost * 0.6f;
         const float gateDepth = s.gate;
+        const float morph     = s.morph;
 
         double inAcc = 0.0, tunedAcc = 0.0, colAcc = 0.0;
 
@@ -172,13 +177,15 @@ public:
             float* w        = tuned[(std::size_t) ch];
             const float* d  = dryActive[(std::size_t) ch];
             float ie = inEnv[(std::size_t) ch], we = wetEnv[(std::size_t) ch], mg = matchGain[(std::size_t) ch], gg = gateGain[(std::size_t) ch];
+            float fie = fastInEnv[(std::size_t) ch], pe = procEnv[(std::size_t) ch];
 
             for (int n = 0; n < numSamples; ++n)
             {
                 const float dry = d[n];
                 const float ad = std::abs (dry), aw = std::abs (w[n]);
-                ie = ad + matchCoef * (ie - ad);
-                we = aw + matchCoef * (we - aw);
+                ie  = ad + matchCoef * (ie - ad);
+                we  = aw + matchCoef * (we - aw);
+                fie = ad + fastCoef  * (fie - ad);      // fast dry envelope (~2 ms)
 
                 const float targetGain = clampf (1.3f * ie / (we + 1.0e-4f), 0.0f, 16.0f);
                 mg += 0.05f * (targetGain - mg);
@@ -186,8 +193,24 @@ public:
                 const float gTarget = (ie > 0.0025f) ? 1.0f : (1.0f - gateDepth);
                 gg = gTarget + gateCoeff * (gg - gTarget);
 
-                const float tunedMatched = w[n] * mg * gg;
-                const float processed = dry + intensity * (tunedMatched - dry) + boostAdd * tunedMatched;
+                float tunedMatched = w[n] * mg * gg;
+
+                // Morph: imprint the dry's fast contour (transient preserve + tail control).
+                if (morph > 0.0f)
+                {
+                    const float contour = clampf (fie / (ie + 1.0e-4f), 0.0f, 3.0f);
+                    tunedMatched *= (1.0f - morph) + morph * contour;
+                }
+
+                float processed = dry + intensity * (tunedMatched - dry) + boostAdd * tunedMatched;
+
+                // Loudness makeup: keep the colour from exceeding ~1.2x the input
+                // level so pushing COLOR never clips (Chroma-style clean staging).
+                pe = std::abs (processed) + slowCoef * (pe - std::abs (processed));
+                const float ceiling = 1.2f * ie + 1.0e-4f;
+                if (pe > ceiling)
+                    processed *= ceiling / pe;
+
                 w[n] = processed;
 
                 inAcc    += (double) dry * dry;
@@ -195,7 +218,8 @@ public:
                 colAcc   += (double) (boostAdd * tunedMatched) * (boostAdd * tunedMatched);
             }
 
-            inEnv[(std::size_t) ch] = ie; wetEnv[(std::size_t) ch] = we; matchGain[(std::size_t) ch] = mg; gateGain[(std::size_t) ch] = gg;
+            inEnv[(std::size_t) ch] = ie; wetEnv[(std::size_t) ch] = we; matchGain[(std::size_t) ch] = mg;
+            gateGain[(std::size_t) ch] = gg; fastInEnv[(std::size_t) ch] = fie; procEnv[(std::size_t) ch] = pe;
         }
 
         const float inv = 1.0f / (float) std::max (1, numSamples * std::max (1, chN));
@@ -209,10 +233,10 @@ private:
     ColourProcessor colour;
     TargetNoteList  targets;
     float sampleRate = 44100.0f;
-    float envCoeff = 0.0f, matchCoef = 0.0f, gateCoeff = 0.0f;
+    float envCoeff = 0.0f, matchCoef = 0.0f, gateCoeff = 0.0f, fastCoef = 0.0f, slowCoef = 0.0f;
     float driveEnv = 0.0f;
     float lfoPhase = 0.0f;
     std::array<float, kMaxVoices> phase {}, shimPhase {};
-    std::array<float, 2> inEnv {}, wetEnv {}, matchGain {}, gateGain {};
+    std::array<float, 2> inEnv {}, wetEnv {}, matchGain {}, gateGain {}, fastInEnv {}, procEnv {};
 };
 } // namespace nscm

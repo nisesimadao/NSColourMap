@@ -94,9 +94,25 @@ a `colourGain` smoother (~80 ms) fades the colour out and the processor then
 idles (passes the dry signal through) so nothing keeps sounding. Scale/Hybrid
 modes always have a grid, so they stay active by design.
 
+## Gamma, Morph, and clean brilliance (COLORS × Chroma voicing)
+
+Informed by colour-bass sound-design research (resonant/vocal shimmer kept clean
+and transient-safe):
+- **Gamma** drives a real vowel-formant shaper (`PseudoFormantTone`): 3 peaks at
+  vowel formants (ah 700/1220/2600 ↔ ee 350/2000/2900 Hz), anti-resonance notches
+  at the geometric means between them, and a slow ~0.3 Hz vowel morph whose depth
+  is Gamma — the organic "self-modulating filter-oid" character. Formant shifts
+  the vowel size by `2^(st/12)`.
+- **Morph** imprints the dry's fast (~2 ms) amplitude contour onto the wet:
+  transients pass through and sustained tails duck — Chroma-style clarity.
+- **De-harsh** — `ColourProcessor` runs a dynamic compressor on the ~3.8 kHz+ air
+  band, cutting only when it gets hot (≈6–8 kHz fizz control). Saturation is tanh
+  (bounded, no hard clip).
+- **Loudness makeup** — the core caps the processed level at ~1.2× the input
+  envelope, so pushing COLOR is loudness-neutral and never clips.
+
 ## MVP simplifications
 
 - Resonator coefficients update per block; glide is internal (~30 ms × character).
-- Morph / Multirate are present as parameters but light/placeholder (spec v1).
-- Gamma feeds the pseudo-formant emphasis; Gate ducks the tail with input level.
+- Multirate is a parameter placeholder (spec v1); Gate ducks the tail with input level.
 - `VisualizerView` is diagnostic only — no real spectral analysis (spec §6.5).
