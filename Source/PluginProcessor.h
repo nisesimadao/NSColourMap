@@ -60,6 +60,14 @@ public:
     juce::uint32 getTargetMask() const noexcept { return uiTargetMask.load(); }
     juce::uint32 getHeldMask()   const noexcept { return uiHeldMask.load(); }
 
+    // UI-grid custom pitch classes (set by clicking the on-screen keyboard in UI mode).
+    juce::uint32 getCustomMask() const noexcept { return uiCustomMask.load(); }
+    void setCustomMask (juce::uint32 mask)
+    {
+        uiCustomMask.store (mask & 0xFFFu);
+        parameters.state.setProperty ("customGrid", (int) (mask & 0xFFFu), nullptr);
+    }
+
 private:
     int qualityToMaxVoices (int quality) const noexcept;
 
@@ -90,6 +98,7 @@ private:
     std::atomic<float>        uiHighHz { 6000.0f };
     std::atomic<juce::uint32> uiTargetMask { 0 };
     std::atomic<juce::uint32> uiHeldMask { 0 };
+    std::atomic<juce::uint32> uiCustomMask { 0 };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NSColourMapAudioProcessor)
 };
