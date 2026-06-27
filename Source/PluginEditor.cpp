@@ -1,6 +1,7 @@
 #include "PluginEditor.h"
 
 #include "Parameters.h"
+#include "Presets.h"
 #include "dsp/AlgoModes.h"
 #include "dsp/ScaleNoteSet.h"
 
@@ -406,10 +407,27 @@ NSColourMapAudioProcessorEditor::NSColourMapAudioProcessorEditor (NSColourMapAud
     configureKnob (mixKnob, mixLabel, "Mix");
     configureKnob (outputKnob, outputLabel, "Output");
 
-    for (auto& s : snapshots)
+    // Preset selector (header)
+    presetBox.setTextWhenNothingSelected ("Presets");
+    presetBox.setJustificationType (juce::Justification::centredLeft);
+    for (int i = 0; i < (int) nscm::presets::factory.size(); ++i)
+        presetBox.addItem (nscm::presets::factory[(size_t) i].name, i + 1);
+    presetBox.onChange = [this]
     {
+        const int idx = presetBox.getSelectedItemIndex();
+        if (idx >= 0 && idx < (int) nscm::presets::factory.size())
+            nscm::presets::apply (audioProcessor.getState(), nscm::presets::factory[(size_t) idx]);
+    };
+    addAndMakeVisible (presetBox);
+
+    // Snapshots A/B/C/D — click recalls (or stores if empty), Alt-click overwrites.
+    for (int i = 0; i < (int) snapshots.size(); ++i)
+    {
+        auto& s = snapshots[(size_t) i];
         s.setClickingTogglesState (false);
-        s.setEnabled (false); // placeholder (spec v1)
+        s.setTooltip ("Snapshot " + juce::String ("ABCD").substring (i, i + 1)
+                      + " — click: recall / store · Alt-click: overwrite");
+        s.onClick = [this, i] { handleSnapshot (i); };
         addAndMakeVisible (s);
     }
 
@@ -509,10 +527,22 @@ void NSColourMapAudioProcessorEditor::syncRadios()
         algoButtons[(size_t) i].setToggleState (i == algo, juce::dontSendNotification);
 }
 
+void NSColourMapAudioProcessorEditor::handleSnapshot (int index)
+{
+    const bool overwrite = juce::ModifierKeys::getCurrentModifiers().isAltDown();
+    if (overwrite || ! audioProcessor.isSnapshotFilled (index))
+        audioProcessor.storeSnapshot (index);
+    else
+        audioProcessor.recallSnapshot (index);
+}
+
 void NSColourMapAudioProcessorEditor::timerCallback()
 {
     syncRadios();
     repaint (midiIndicator.getBounds().expanded (8));
+
+    for (int i = 0; i < (int) snapshots.size(); ++i)
+        snapshots[(size_t) i].setToggleState (audioProcessor.isSnapshotFilled (i), juce::dontSendNotification);
 
     if (currentTab == 0)
     {
@@ -627,11 +657,13 @@ void NSColourMapAudioProcessorEditor::resized()
 {
     auto area   = getLocalBounds();
     auto header = area.removeFromTop (48).reduced (14, 6);
-    logoLabel.setBounds (header.removeFromLeft (240));
+    logoLabel.setBounds (header.removeFromLeft (158));
     aboutTab.setBounds (header.removeFromRight (72));
     mainTab.setBounds (header.removeFromRight (70).reduced (4, 0));
     const auto indicatorSlot = header.removeFromRight (20);
     midiIndicator.setBounds (indicatorSlot.getCentreX() - 6, indicatorSlot.getCentreY() - 6, 12, 12);
+    header.removeFromLeft (6);
+    presetBox.setBounds (header.removeFromLeft (juce::jmin (200, header.getWidth())).reduced (0, 8));
 
     if (currentTab != 0)
         return;

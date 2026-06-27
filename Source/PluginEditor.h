@@ -70,9 +70,14 @@ private:
     void setCurrentTab (int);
     void timerCallback() override;
     void syncRadios();
+    void handleSnapshot (int index);
 
     NSColourMapAudioProcessor& audioProcessor;
     NSColourMapLookAndFeel lnf;
+    juce::TooltipWindow tooltip { this, 600 };
+
+    // Preset selector
+    juce::ComboBox presetBox;
 
     // Header
     juce::Label      logoLabel;

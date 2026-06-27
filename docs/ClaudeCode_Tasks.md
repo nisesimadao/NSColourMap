@@ -30,9 +30,16 @@ Implementation status against the phases in `NSColourMap_Spec.md` (§25).
   `TargetNoteGenerator` (relative-minor equality, freeze behaviour, A440, ordering).
   Run via `ctest --test-dir build`.
 
+## Done (v1)
+
+- **Phase 9 — Presets**: 10 factory presets (`Source/Presets.h`, spec §23 / §27)
+  selectable from the header preset menu; applied via APVTS.
+- **Snapshot A/B/C/D**: full-state store / recall (`Source/PluginProcessor` snapshot
+  API). Click stores empty / recalls filled, Alt-click overwrites. Persisted in the
+  plugin state via a wrapped `NSColourMapState` XML (backward compatible).
+
 ## Next (v1+)
 
-- Presets (spec §23) and Snapshot A/B/C/D (currently disabled placeholders).
 - Auto gain, advanced parameter UI (Resonance/Decay/Drive/Width), CPU quality polish.
 - Instrument-compatible build for DAWs that can't route MIDI into FX (spec §8.2).
 - v2: STFT pitch-class mapper, custom map mode, convolution IR, glitch sequencer.
