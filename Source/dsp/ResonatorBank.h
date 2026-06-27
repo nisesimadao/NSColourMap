@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+
 #include <array>
 #include <cmath>
 
@@ -93,10 +95,10 @@ public:
 
         for (int i = 0; i < kMaxVoices; ++i)
         {
-            auto& v = voices[(size_t) i];
+            auto& v = voices[(std::size_t) i];
             if (i < activeCount)
             {
-                v.targetHz = list.freqs[(size_t) i];
+                v.targetHz = list.freqs[(std::size_t) i];
                 if (! v.active)            // newly activated voice snaps to target
                     v.currentHz = v.targetHz;
                 v.active = true;
@@ -119,7 +121,7 @@ public:
         // Per-block glide + coefficient update.
         for (int i = 0; i < activeCount; ++i)
         {
-            auto& v = voices[(size_t) i];
+            auto& v = voices[(std::size_t) i];
             v.currentHz = t.glideCoeff <= 0.0f
                               ? v.targetHz
                               : v.targetHz + t.glideCoeff * (v.currentHz - v.targetHz);
@@ -152,7 +154,7 @@ public:
 
                 for (int i = 0; i < activeCount; ++i)
                 {
-                    auto& v = voices[(size_t) i];
+                    auto& v = voices[(std::size_t) i];
                     float bp = isRight ? v.right.processBandpass (in)
                                        : v.left.processBandpass (in);
                     if (useAir)
@@ -175,7 +177,7 @@ public:
 
     float getVoiceHz (int i) const noexcept
     {
-        return (i >= 0 && i < activeCount) ? voices[(size_t) i].currentHz : 0.0f;
+        return (i >= 0 && i < activeCount) ? voices[(std::size_t) i].currentHz : 0.0f;
     }
 
 private:

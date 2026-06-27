@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+
 #include <array>
 #include <cmath>
 #include <cstdint>
@@ -48,7 +50,7 @@ inline void fillTargetNotes (TargetNoteList& out, std::uint16_t mask, int scaleS
     {
         const int pc = ((n % 12) + 12) % 12;
         if (mask & (1u << pc))
-            candidates[(size_t) candidateCount++] = n + scaleShift;
+            candidates[(std::size_t) candidateCount++] = n + scaleShift;
     }
 
     if (candidateCount == 0)
@@ -58,8 +60,8 @@ inline void fillTargetNotes (TargetNoteList& out, std::uint16_t mask, int scaleS
     {
         for (int i = 0; i < candidateCount; ++i)
         {
-            out.notes[(size_t) i] = candidates[(size_t) i];
-            out.freqs[(size_t) i] = midiNoteToHz ((float) candidates[(size_t) i]);
+            out.notes[(std::size_t) i] = candidates[(std::size_t) i];
+            out.freqs[(std::size_t) i] = midiNoteToHz ((float) candidates[(std::size_t) i]);
         }
         out.count = candidateCount;
         return;
@@ -69,8 +71,8 @@ inline void fillTargetNotes (TargetNoteList& out, std::uint16_t mask, int scaleS
     for (int i = 0; i < maxVoices; ++i)
     {
         const int idx = (int) std::lround ((double) i * (candidateCount - 1) / (maxVoices - 1));
-        out.notes[(size_t) i] = candidates[(size_t) idx];
-        out.freqs[(size_t) i] = midiNoteToHz ((float) candidates[(size_t) idx]);
+        out.notes[(std::size_t) i] = candidates[(std::size_t) idx];
+        out.freqs[(std::size_t) i] = midiNoteToHz ((float) candidates[(std::size_t) idx]);
     }
     out.count = maxVoices;
 }

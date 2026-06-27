@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+
 #include <array>
 #include <algorithm>
 #include <cmath>
@@ -104,18 +106,18 @@ public:
         std::array<bool,  kMaxVoices> use2 {}, use3 {}, useShim {};
         for (int v = 0; v < nv; ++v)
         {
-            const float f = targets.freqs[(size_t) v];
-            inc[(size_t) v]     = twoPi * f / sampleRate;
-            use2[(size_t) v]    = (2.0f * f) < nyq;           // band-limit harmonics
-            use3[(size_t) v]    = (3.0f * f) < nyq;
-            useShim[(size_t) v] = (2.0f * f) < nyq;
+            const float f = targets.freqs[(std::size_t) v];
+            inc[(std::size_t) v]     = twoPi * f / sampleRate;
+            use2[(std::size_t) v]    = (2.0f * f) < nyq;           // band-limit harmonics
+            use3[(std::size_t) v]    = (3.0f * f) < nyq;
+            useShim[(std::size_t) v] = (2.0f * f) < nyq;
         }
 
         for (int n = 0; n < numSamples; ++n)
         {
             // mono input drive envelope
             float mono = 0.0f;
-            for (int ch = 0; ch < chN; ++ch) mono += dryActive[(size_t) ch][n];
+            for (int ch = 0; ch < chN; ++ch) mono += dryActive[(std::size_t) ch][n];
             mono = std::abs (mono / (float) (chN > 0 ? chN : 1));
             driveEnv = mono + envCoeff * (driveEnv - mono);
 
@@ -127,18 +129,18 @@ public:
             float osc = 0.0f, shim = 0.0f;
             for (int v = 0; v < nv; ++v)
             {
-                float p = phase[(size_t) v] + inc[(size_t) v];
+                float p = phase[(std::size_t) v] + inc[(std::size_t) v];
                 if (p >= twoPi) p -= twoPi;
-                phase[(size_t) v] = p;
+                phase[(std::size_t) v] = p;
                 osc += std::sin (p)
-                     + (use2[(size_t) v] ? harm2 * std::sin (2.0f * p) : 0.0f)
-                     + (use3[(size_t) v] ? harm3 * std::sin (3.0f * p) : 0.0f);
+                     + (use2[(std::size_t) v] ? harm2 * std::sin (2.0f * p) : 0.0f)
+                     + (use3[(std::size_t) v] ? harm3 * std::sin (3.0f * p) : 0.0f);
 
-                if (shimAmt > 0.0f && useShim[(size_t) v])
+                if (shimAmt > 0.0f && useShim[(std::size_t) v])
                 {
-                    float sp = shimPhase[(size_t) v] + inc[(size_t) v] * 2.0f * shimDetune;
+                    float sp = shimPhase[(std::size_t) v] + inc[(std::size_t) v] * 2.0f * shimDetune;
                     if (sp >= twoPi) sp -= twoPi;
-                    shimPhase[(size_t) v] = sp;
+                    shimPhase[(std::size_t) v] = sp;
                     shim += std::sin (sp);
                 }
             }
@@ -146,7 +148,7 @@ public:
 
             // combine oscillator grid (dominant) with resonator emphasis
             for (int ch = 0; ch < chN; ++ch)
-                tuned[(size_t) ch][n] = oscMix * osc + resMix * tuned[(size_t) ch][n];
+                tuned[(std::size_t) ch][n] = oscMix * osc + resMix * tuned[(std::size_t) ch][n];
         }
 
         // ── Colour shaping ─────────────────────────────────────────────────────
@@ -167,9 +169,9 @@ public:
 
         for (int ch = 0; ch < chN; ++ch)
         {
-            float* w        = tuned[(size_t) ch];
-            const float* d  = dryActive[(size_t) ch];
-            float ie = inEnv[(size_t) ch], we = wetEnv[(size_t) ch], mg = matchGain[(size_t) ch], gg = gateGain[(size_t) ch];
+            float* w        = tuned[(std::size_t) ch];
+            const float* d  = dryActive[(std::size_t) ch];
+            float ie = inEnv[(std::size_t) ch], we = wetEnv[(std::size_t) ch], mg = matchGain[(std::size_t) ch], gg = gateGain[(std::size_t) ch];
 
             for (int n = 0; n < numSamples; ++n)
             {
@@ -193,7 +195,7 @@ public:
                 colAcc   += (double) (boostAdd * tunedMatched) * (boostAdd * tunedMatched);
             }
 
-            inEnv[(size_t) ch] = ie; wetEnv[(size_t) ch] = we; matchGain[(size_t) ch] = mg; gateGain[(size_t) ch] = gg;
+            inEnv[(std::size_t) ch] = ie; wetEnv[(std::size_t) ch] = we; matchGain[(std::size_t) ch] = mg; gateGain[(std::size_t) ch] = gg;
         }
 
         const float inv = 1.0f / (float) std::max (1, numSamples * std::max (1, chN));

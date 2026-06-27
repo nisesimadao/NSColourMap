@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+
 #include <array>
 #include <cmath>
 
@@ -47,8 +49,8 @@ public:
         for (int ch = 0; ch < numChannels && ch < 2; ++ch)
         {
             float* data = channels[ch];
-            float& lp   = lpState[(size_t) ch];
-            float& ap   = airState[(size_t) ch];
+            float& lp   = lpState[(std::size_t) ch];
+            float& ap   = airState[(std::size_t) ch];
 
             for (int s2 = 0; s2 < numSamples; ++s2)
             {
