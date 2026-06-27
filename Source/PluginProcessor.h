@@ -14,6 +14,9 @@
 #include "dsp/ColourMappingCore.h"
 #include "dsp/PseudoFormantTone.h"
 #include "dsp/SafetyLimiter.h"
+#include "dsp/SpectralMapper.h"
+#include "dsp/SpectrumAnalyzer.h"
+#include <juce_dsp/juce_dsp.h>
 
 class NSColourMapAudioProcessor final : public juce::AudioProcessor
 {
@@ -61,6 +64,10 @@ public:
     juce::uint32 getHeldMask()   const noexcept { return uiHeldMask.load(); }
 
     // UI-grid custom pitch classes (set by clicking the on-screen keyboard in UI mode).
+    // Spectrum analyzer (EQ-style display).
+    static constexpr int getSpectrumBinCount() noexcept { return nscm::SpectrumAnalyzer::kBins; }
+    float getSpectrumBin (int i) const noexcept { return analyzer.getBin (i); }
+
     juce::uint32 getCustomMask() const noexcept { return uiCustomMask.load(); }
     void setCustomMask (juce::uint32 mask)
     {
@@ -80,9 +87,14 @@ private:
     nscm::ColourMappingCore colourCore;
     nscm::PseudoFormantTone formantTone;
     nscm::SafetyLimiter     limiter;
+    nscm::SpectralMapper    spectral;
+    nscm::SpectrumAnalyzer  analyzer;
     nscm::TargetNoteList    targets;
 
-    juce::AudioBuffer<float> dryBuf, activeBuf, tunedBuf;
+    juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::None> dryDelay { 1 << 13 };
+    int reportedLatency = 0;
+
+    juce::AudioBuffer<float> dryBuf, activeBuf, snapBuf, tunedBuf;
     std::vector<float>       transientEnv;
 
     juce::SmoothedValue<float> colorSm, amountSm, mixSm, outputSm, formantSm, gammaSm, gateSm;

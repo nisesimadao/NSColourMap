@@ -231,6 +231,30 @@ void VisualizerView::paint (juce::Graphics& g)
     g.setColour (dryCol.withAlpha (0.22f));
     g.fillRect (juce::Rectangle<float> (plot.getX(), plot.getBottom() - dryH, plot.getWidth(), dryH));
 
+    // EQ-style spectrum analyzer (output), drawn behind the pitch lanes.
+    {
+        const int n = processor.getSpectrumBinCount();
+        constexpr float aLo = 30.0f, aHi = 18000.0f;
+        const float lr = std::log (aHi / aLo);
+        juce::Path curve, fill;
+        bool started = false;
+        for (int i = 0; i < n; ++i)
+        {
+            const float f = aLo * std::exp (lr * (float) i / (float) (n - 1));
+            const float xx = freqToX (f, plot);
+            const float v  = processor.getSpectrumBin (i);
+            const float yy = plot.getBottom() - v * plot.getHeight() * 0.92f;
+            if (! started) { curve.startNewSubPath (xx, yy); fill.startNewSubPath (xx, plot.getBottom()); fill.lineTo (xx, yy); started = true; }
+            else           { curve.lineTo (xx, yy); fill.lineTo (xx, yy); }
+        }
+        fill.lineTo (plot.getRight(), plot.getBottom());
+        fill.closeSubPath();
+        g.setColour (accent.withAlpha (0.10f));
+        g.fillPath (fill);
+        g.setColour (accent.withAlpha (0.45f));
+        g.strokePath (curve, juce::PathStrokeType (1.4f));
+    }
+
     // TUNED lanes (cyan) + COLORED tips (amber)
     const auto mask  = processor.getTargetMask();
     const auto held  = processor.getHeldMask();
@@ -687,7 +711,7 @@ void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
         g.fillRoundedRectangle (badge, 5.0f);
         g.setColour (accent);
         g.setFont (sectionFont());
-        g.drawText ("v0.5.0", badge.toNearestInt(), juce::Justification::centred);
+        g.drawText ("v0.6.0", badge.toNearestInt(), juce::Justification::centred);
         area.removeFromTop (34);
 
         g.setColour (panelLight.brighter (0.1f));
