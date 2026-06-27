@@ -42,6 +42,8 @@ public:
         bank.reset();
         colour.reset();
         phase.fill (0.0f);
+        shimPhase.fill (0.0f);
+        lfoPhase = 0.0f;
         driveEnv = 0.0f;
         inEnv.fill (0.0f); wetEnv.fill (0.0f); matchGain.fill (1.0f); gateGain.fill (1.0f);
     }
@@ -80,6 +82,7 @@ public:
         t.drive       = prof.drive;
         t.stereoCents = 4.0f + prof.width * 8.0f;
         t.baseGain    = 1.0f;
+        t.air         = clampf (prof.air * (0.4f + 0.6f * s.color01) + s.colorBoost * 0.4f, 0.0f, 1.2f);
         const float glideSec = 0.030f * prof.glideScale;
         t.glideCoeff  = glideSec <= 0.0f ? 0.0f : std::exp (-((float) numSamples / sampleRate) / glideSec);
         bank.process (tuned, numChannels, numSamples, t);
@@ -90,12 +93,23 @@ public:
         const float harm2  = 0.35f + 0.25f * s.colorBoost;   // 2nd harmonic
         const float harm3  = 0.15f * s.color01 + 0.2f * s.colorBoost; // 3rd harmonic
         const float twoPi  = 6.28318530717958648f;
+        const float nyq    = 0.45f * sampleRate;
         const float resMix = 0.22f;                           // small resonator emphasis (texture)
         const float oscMix = 1.15f + 0.45f * s.colorBoost;    // oscillator grid weight (dominant)
+        // Shimmer: a detuned octave-up partial that slowly beats -> living sparkle.
+        const float shimAmt = clampf (prof.shimmer * (0.35f + 0.65f * s.color01) + s.colorBoost * 0.4f, 0.0f, 1.3f);
+        const float lfoInc  = twoPi * 0.6f / sampleRate;      // ~0.6 Hz movement
 
         std::array<float, kMaxVoices> inc {};
+        std::array<bool,  kMaxVoices> use2 {}, use3 {}, useShim {};
         for (int v = 0; v < nv; ++v)
-            inc[(size_t) v] = twoPi * targets.freqs[(size_t) v] / sampleRate;
+        {
+            const float f = targets.freqs[(size_t) v];
+            inc[(size_t) v]     = twoPi * f / sampleRate;
+            use2[(size_t) v]    = (2.0f * f) < nyq;           // band-limit harmonics
+            use3[(size_t) v]    = (3.0f * f) < nyq;
+            useShim[(size_t) v] = (2.0f * f) < nyq;
+        }
 
         for (int n = 0; n < numSamples; ++n)
         {
@@ -105,17 +119,30 @@ public:
             mono = std::abs (mono / (float) (chN > 0 ? chN : 1));
             driveEnv = mono + envCoeff * (driveEnv - mono);
 
-            // sum oscillators
-            float osc = 0.0f;
+            lfoPhase += lfoInc;
+            if (lfoPhase >= twoPi) lfoPhase -= twoPi;
+            const float shimDetune = 1.0f + 0.004f * std::sin (lfoPhase); // slow octave detune
+
+            // sum oscillators (fundamental + harmonics + detuned shimmer octave)
+            float osc = 0.0f, shim = 0.0f;
             for (int v = 0; v < nv; ++v)
             {
                 float p = phase[(size_t) v] + inc[(size_t) v];
                 if (p >= twoPi) p -= twoPi;
                 phase[(size_t) v] = p;
-                const float s1 = std::sin (p);
-                osc += s1 + harm2 * std::sin (2.0f * p) + harm3 * std::sin (3.0f * p);
+                osc += std::sin (p)
+                     + (use2[(size_t) v] ? harm2 * std::sin (2.0f * p) : 0.0f)
+                     + (use3[(size_t) v] ? harm3 * std::sin (3.0f * p) : 0.0f);
+
+                if (shimAmt > 0.0f && useShim[(size_t) v])
+                {
+                    float sp = shimPhase[(size_t) v] + inc[(size_t) v] * 2.0f * shimDetune;
+                    if (sp >= twoPi) sp -= twoPi;
+                    shimPhase[(size_t) v] = sp;
+                    shim += std::sin (sp);
+                }
             }
-            osc *= oscNorm * driveEnv;
+            osc = (osc + shimAmt * shim) * oscNorm * driveEnv;
 
             // combine oscillator grid (dominant) with resonator emphasis
             for (int ch = 0; ch < chN; ++ch)
@@ -126,6 +153,7 @@ public:
         ColourProcessor::Settings cs;
         cs.colour   = s.color01 + s.colorBoost * 0.5f;
         cs.drive    = prof.drive * 0.4f;
+        cs.air      = clampf (prof.air * (0.3f + 0.7f * s.color01) + s.colorBoost * 0.5f, 0.0f, 1.2f);
         cs.width    = prof.width;
         cs.highEmph = prof.highEmph;
         colour.process (tuned, numChannels, numSamples, cs);
@@ -181,7 +209,8 @@ private:
     float sampleRate = 44100.0f;
     float envCoeff = 0.0f, matchCoef = 0.0f, gateCoeff = 0.0f;
     float driveEnv = 0.0f;
-    std::array<float, kMaxVoices> phase {};
+    float lfoPhase = 0.0f;
+    std::array<float, kMaxVoices> phase {}, shimPhase {};
     std::array<float, 2> inEnv {}, wetEnv {}, matchGain {}, gateGain {};
 };
 } // namespace nscm

@@ -45,6 +45,21 @@ smoothers were read with `getCurrentValue()` but never advanced, so those knobs
 were frozen at their load-time values. They are now advanced with `skip()` each
 block.
 
+## Shine / brilliance
+
+Brightness comes from three cooperating layers, all scaled by COLOR and the
+Character profile's `air` / `shimmer`:
+- **Resonator air** — each `ResonatorVoice` adds an octave-up, higher-Q bandpass
+  (`leftHi/rightHi`) with a few cents of L/R detune → bell-like sparkle.
+- **Oscillator shimmer** — each grid oscillator adds a detuned octave-up partial
+  whose detune is modulated by a slow ~0.6 Hz LFO → a living, beating shimmer.
+  Harmonics and the shimmer partial are band-limited per voice (skip any partial
+  above 0.45·fs) to avoid aliasing on high grid notes.
+- **Air shelf** — `ColourProcessor` brightens content above ~3.8 kHz.
+
+Character brightness ranking: Hyper > Alien > Glitch > Color > Clean (measured:
+Hyper at COLOR 200% is ~4.7× brighter above 3.5 kHz than the dry input).
+
 ## COLOR 0-200%
 
 - `color01 = min(COLOR, 1)` blends dry → tuned (Chroma "add colour" range).

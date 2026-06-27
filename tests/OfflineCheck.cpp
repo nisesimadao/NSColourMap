@@ -111,6 +111,16 @@ int main()
     printf ("input  RMS : %.4f\n", inR);
     printf ("output RMS : %.4f  (%.2fx)\n", outR, outR / (inR + 1e-9));
     printf ("diff   RMS : %.4f  (%.1f%% of input)\n", diffR, 100.0 * diffR / (inR + 1e-9));
+    // Brightness: energy above ~3.5 kHz (one-pole highpass), out vs in.
+    auto highRms = [sr] (const float* x, int n) {
+        const float c = std::exp (-2.0f * 3.14159265f * 3500.0f / (float) sr);
+        float lp = 0.0f; double a = 0.0;
+        for (int i = 0; i < n; ++i) { lp = x[i] + c * (lp - x[i]); const double h = x[i] - lp; a += h * h; }
+        return std::sqrt (a / n);
+    };
+    const double hiIn  = highRms (in, m);
+    const double hiOut = highRms (out, m);
+    printf ("HF(>3.5k) in : %.4f   out : %.4f   (%.2fx brighter)\n", hiIn, hiOut, hiOut / (hiIn + 1e-9));
     printf ("in-scale avg energy  : %.4f\n", inAvg);
     printf ("off-scale avg energy : %.4f\n", offAvg);
     printf ("in/off tonality ratio: %.2f\n", inAvg / (offAvg + 1e-9));

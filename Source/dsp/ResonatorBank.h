@@ -42,7 +42,8 @@ struct SvfResonator
 // with glide, per-voice gain, Q, drive and a small stereo detune (spec §18.4-18.5).
 struct ResonatorVoice
 {
-    SvfResonator left, right;
+    SvfResonator left, right;       // fundamental resonance
+    SvfResonator leftHi, rightHi;   // octave-up "air" resonance for shine
     float targetHz  = 0.0f;
     float currentHz = 0.0f;
     bool  active    = false;
@@ -51,6 +52,8 @@ struct ResonatorVoice
     {
         left.reset();
         right.reset();
+        leftHi.reset();
+        rightHi.reset();
         currentHz = targetHz;
     }
 };
@@ -79,6 +82,7 @@ public:
         float stereoCents = 6.0f;  // L/R detune in cents
         float glideCoeff = 0.0f;   // one-pole coeff per block (0 = instant)
         float baseGain   = 1.0f;   // overall wet gain into the bank
+        float air        = 0.0f;   // 0..1 octave-up bright resonance (shine)
     };
 
     // Update the active targets. Called at control rate (per block) — no allocation.
@@ -121,10 +125,20 @@ public:
                               : v.targetHz + t.glideCoeff * (v.currentHz - v.targetHz);
             v.left.setCoeffs (v.currentHz / detune, t.q, sampleRate);
             v.right.setCoeffs (v.currentHz * detune, t.q, sampleRate);
+
+            if (t.air > 0.0f)
+            {
+                // Octave-up resonance, higher Q + a few cents of detune -> shimmer.
+                const float hi = v.currentHz * 2.0f;
+                v.leftHi.setCoeffs  (hi * 0.9994f, t.q * 1.5f, sampleRate);
+                v.rightHi.setCoeffs (hi * 1.0006f, t.q * 1.5f, sampleRate);
+            }
         }
 
         const float driveGain = 1.0f + t.drive * 6.0f;
         const float driveComp = 1.0f / (1.0f + t.drive * 2.0f);
+        const bool  useAir    = t.air > 0.0f;
+        const float airAmt    = t.air;
 
         for (int ch = 0; ch < numChannels && ch < 2; ++ch)
         {
@@ -141,6 +155,12 @@ public:
                     auto& v = voices[(size_t) i];
                     float bp = isRight ? v.right.processBandpass (in)
                                        : v.left.processBandpass (in);
+                    if (useAir)
+                    {
+                        const float hi = isRight ? v.rightHi.processBandpass (in)
+                                                 : v.leftHi.processBandpass (in);
+                        bp += airAmt * hi;
+                    }
                     if (t.drive > 0.0f)
                         bp = std::tanh (bp * driveGain) * driveComp;
                     acc += bp;
