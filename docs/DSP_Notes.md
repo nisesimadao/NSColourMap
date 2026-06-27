@@ -26,14 +26,24 @@ Audio In
 (including the protected sub) passes through untouched, and Mix only controls how
 much of the *transformation* is applied.
 
-## Why it is audible (the key fix)
+## Why it is audible (two key fixes)
 
-The v0.3 build summed high-Q bandpass voices normalised by 1/√N — far quieter than
-the dry — so the effect was inaudible. `ColourMappingCore` now **energy-matches**
-the tuned signal to the input (per-channel envelope followers compute a smoothed
-gain so the wet tracks the input's loudness, clamped ≤ 12×). Verified by the
-audibility test: broadband noise tuned to A4 concentrates energy ~hundreds× at
-440 Hz while output RMS stays ≈ input RMS.
+1. **Grid oscillator layer.** A resonator bank can only *emphasise frequencies
+   already present* in the input, so on off-key or inharmonic material it does
+   almost nothing — which is why earlier builds sounded like "nothing changed."
+   `ColourMappingCore` now drives a bank of **sine+harmonic oscillators tuned to
+   the grid notes** with the input's amplitude envelope, *synthesising* an in-key
+   chord from any source (noise, off-key bass, chops). The resonator bank remains
+   as a small emphasis/texture layer. The oscillator layer is what makes the
+   colour obvious and genuinely tonal.
+2. **Energy match.** The combined tuned signal is scaled (per-channel envelope
+   followers, smoothed gain, slight +presence) to track the input's loudness, so
+   the colour is always as loud as the dry.
+
+Earlier there was also a real bug: the COLOR / Amount / Formant / Gamma / Gate
+smoothers were read with `getCurrentValue()` but never advanced, so those knobs
+were frozen at their load-time values. They are now advanced with `skip()` each
+block.
 
 ## COLOR 0-200%
 
@@ -52,7 +62,7 @@ audibility test: broadband noise tuned to A4 concentrates energy ~hundreds× at
 | `TransientDetector` | Fast/slow envelope difference → transient envelope |
 | `ResonatorBank` / `SvfResonator` | TPT SVF bandpass voices, glide, drive, stereo detune |
 | `ColourProcessor` | High-shelf emphasis, saturation, harmonic density, M/S width |
-| `ColourMappingCore` | Resonators + colour + **energy match** + blend + gate (the audible core) |
+| `ColourMappingCore` | **Grid oscillators** (synthesise in-key tones) + resonator emphasis + colour + **energy match** + blend + gate (the audible core) |
 | `PseudoFormantTone` | Movable peak biquads + tilt (Formant/Gamma), not a real shifter |
 | `SafetyLimiter` | Soft-knee tanh clip guard |
 | `CharacterModes` | Per-character tuning table (Clean/Color/Hyper/Alien/Glitch) |
