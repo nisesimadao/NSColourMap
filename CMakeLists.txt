@@ -99,3 +99,23 @@ target_link_libraries(NSColourMap_OfflineCheck PRIVATE
     juce::juce_dsp
     juce::juce_gui_basics
     juce::juce_recommended_config_flags)
+
+# ── Screenshot generator (renders the editor to PNGs for the README) ─────────
+add_executable(NSColourMap_Screenshot
+    tools/Screenshot.cpp
+    Source/PluginProcessor.cpp
+    Source/PluginEditor.cpp
+    Source/Parameters.cpp)
+target_include_directories(NSColourMap_Screenshot PRIVATE Source)
+target_compile_definitions(NSColourMap_Screenshot PRIVATE
+    JUCE_STANDALONE_APPLICATION=1
+    JUCE_MODAL_LOOPS_PERMITTED=1
+    JucePlugin_Name="NSColourMap"
+    JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+target_link_libraries(NSColourMap_Screenshot PRIVATE
+    juce::juce_audio_utils
+    juce::juce_audio_processors
+    juce::juce_dsp
+    juce::juce_gui_basics
+    juce::juce_graphics
+    juce::juce_recommended_config_flags)

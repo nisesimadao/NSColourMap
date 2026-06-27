@@ -206,6 +206,7 @@ void NSColourMapAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     cset.colorBoost = juce::jlimit (0.0f, 1.0f, colorNow - 1.0f);
     cset.amount     = amountSm.skip (numSamples);
     cset.gate       = gateSm.skip (numSamples);
+    cset.morph      = getValue (parameters, params::morph);
     cset.profile    = profile;
 
     ColourMappingCore::Energies energies;
@@ -215,13 +216,12 @@ void NSColourMapAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     uiTunedEnergy.store (energies.tuned);
     uiColoredEnergy.store (energies.colored);
 
-    // ── Pseudo formant / gamma ────────────────────────────────────────────────
-    const float formantSt  = formantSm.skip (numSamples);
-    const float gammaNow   = gammaSm.skip (numSamples);
-    const float formantAmt = juce::jlimit (0.0f, 1.0f,
-                                          (std::abs (formantSt) / 24.0f * 0.6f + gammaNow * 0.6f)
-                                              * (0.5f + 0.5f * profile.formantReact));
-    formantTone.update (formantSt, formantAmt);
+    // ── Pseudo formant / gamma (real vowel formants, exaggerated by Gamma) ─────
+    const float formantSt = formantSm.skip (numSamples);
+    const float gammaNow  = gammaSm.skip (numSamples);
+    const float baseAmt   = juce::jlimit (0.0f, 1.0f,
+                                          std::abs (formantSt) / 24.0f * 0.6f + profile.formantReact * 0.15f);
+    formantTone.update (formantSt, baseAmt, gammaNow, numSamples);
     formantTone.process (tuned, numCh, numSamples);
 
     // ── Side mute (collapse processed band toward mono) ───────────────────────

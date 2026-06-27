@@ -58,28 +58,53 @@ public:
         for (auto& ch : peaks)
             for (auto& p : ch)
                 p.reset();
+        for (auto& ch : notch)
+            for (auto& n : ch)
+                n.reset();
         for (auto& t : tilt)
             t.reset();
+        lfoPhase = 0.0f;
     }
 
-    // Update coefficients at control rate.
-    void update (float formantSemitones, float amount) noexcept
+    // Update coefficients at control rate. 'formant' shifts vowel size, 'baseAmount'
+    // is the always-on vowel presence, 'gamma' exaggerates the formant peaks, deepens
+    // the anti-resonance notches between them, and slowly morphs the vowel (ah<->ee)
+    // for the organic "self-modulating filter-oid" character (research: COLORS Gamma).
+    void update (float formantSemitones, float baseAmount, float gamma, int numSamples) noexcept
     {
+        // Real vowel formant centres (Hz): "ah" and "ee".
+        static constexpr std::array<float, 3> ah { 700.0f, 1220.0f, 2600.0f };
+        static constexpr std::array<float, 3> ee { 350.0f, 2000.0f, 2900.0f };
+
         const float ratio = std::pow (2.0f, formantSemitones / 12.0f);
-        // Vowel-ish base formant centres.
-        static constexpr std::array<float, 3> baseHz { 560.0f, 1180.0f, 2600.0f };
-        const float gain = 4.0f + amount * 8.0f; // peak boost in dB
+
+        // Slow vowel morph, depth = gamma.
+        lfoPhase += 6.28318530718f * 0.3f * (float) numSamples / sampleRate;
+        if (lfoPhase >= 6.28318530718f) lfoPhase -= 6.28318530718f;
+        const float m = gamma * (0.5f + 0.5f * std::sin (lfoPhase));
+
+        const float q      = 4.0f + gamma * 5.0f;
+        const float pkGain = 3.0f + baseAmount * 5.0f + gamma * 7.0f;     // dB
+        const float nGain  = -(2.0f + gamma * 8.0f);                      // dB (anti-resonance)
+
+        std::array<float, 3> c {};
+        for (int i = 0; i < 3; ++i)
+            c[(std::size_t) i] = (ah[(std::size_t) i] + m * (ee[(std::size_t) i] - ah[(std::size_t) i])) * ratio;
 
         for (int ch = 0; ch < 2; ++ch)
         {
             for (int i = 0; i < 3; ++i)
-                peaks[(std::size_t) ch][(std::size_t) i].setPeak (baseHz[(std::size_t) i] * ratio, 3.0f, gain, sampleRate);
+                peaks[(std::size_t) ch][(std::size_t) i].setPeak (c[(std::size_t) i], q, pkGain, sampleRate);
 
-            // Tilt: a broad shelf-ish peak. Formant up -> brighter, down -> darker.
+            // Anti-resonance notches at the geometric means between adjacent formants.
+            notch[(std::size_t) ch][0].setPeak (std::sqrt (c[0] * c[1]), 2.5f, nGain, sampleRate);
+            notch[(std::size_t) ch][1].setPeak (std::sqrt (c[1] * c[2]), 2.5f, nGain, sampleRate);
+
+            // Tilt: formant up -> brighter, down -> darker.
             const float tiltHz = formantSemitones >= 0.0f ? 4000.0f : 300.0f;
-            tilt[(std::size_t) ch].setPeak (tiltHz, 0.7f, std::abs (formantSemitones) * 0.25f, sampleRate);
+            tilt[(std::size_t) ch].setPeak (tiltHz, 0.7f, std::abs (formantSemitones) * 0.2f, sampleRate);
         }
-        active = amount > 0.001f;
+        active = (baseAmount > 0.001f) || (gamma > 0.001f) || (std::abs (formantSemitones) > 0.01f);
     }
 
     void process (float* const* channels, int numChannels, int numSamples) noexcept
@@ -95,6 +120,8 @@ public:
                 float x = data[s];
                 for (int i = 0; i < 3; ++i)
                     x = peaks[(std::size_t) ch][(std::size_t) i].process (x);
+                x = notch[(std::size_t) ch][0].process (x);
+                x = notch[(std::size_t) ch][1].process (x);
                 x = tilt[(std::size_t) ch].process (x);
                 data[s] = x;
             }
@@ -103,8 +130,10 @@ public:
 
 private:
     float sampleRate = 44100.0f;
+    float lfoPhase = 0.0f;
     bool  active = false;
     std::array<std::array<Biquad, 3>, 2> peaks;
+    std::array<std::array<Biquad, 2>, 2> notch;
     std::array<Biquad, 2> tilt;
 };
 } // namespace nscm
