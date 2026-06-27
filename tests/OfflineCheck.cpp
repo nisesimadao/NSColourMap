@@ -176,5 +176,55 @@ int main()
         if (! stops) return 1;
     }
 
+    // ── High Quality STFT spectral snap: off-scale energy must drop ───────────
+    {
+        NSColourMapAudioProcessor hp;
+        hp.prepareToPlay (sr, block);
+        auto& hs = hp.getState();
+        setP (hs, nscm::params::mode,      0.0f);  // Scale
+        setP (hs, nscm::params::character, 1.0f);
+        setP (hs, nscm::params::key,       0.0f);
+        setP (hs, nscm::params::scale,     7.0f);  // C minor pentatonic
+        setP (hs, nscm::params::quality,   1.0f);  // High Quality -> STFT engine
+        setP (hs, nscm::params::color,     1.0f);
+        setP (hs, nscm::params::amount,    1.0f);
+        setP (hs, nscm::params::mix,       1.0f);
+
+        std::vector<float> outv; long ph = 0; int d = 0;
+        bool finite = true;
+        while (d < N)
+        {
+            const int n = std::min (block, N - d);
+            juce::AudioBuffer<float> b (2, n);
+            for (int i = 0; i < n; ++i)
+            {
+                const double t = std::fmod ((double) (ph++) * 110.0 / sr, 1.0); // A2 (off-scale)
+                const float saw = (float) (2.0 * t - 1.0) * 0.3f;
+                b.getWritePointer (0)[i] = saw; b.getWritePointer (1)[i] = saw;
+            }
+            juce::MidiBuffer mb; hp.processBlock (b, mb);
+            for (int i = 0; i < n; ++i)
+            {
+                const float v = b.getReadPointer (0)[i];
+                if (! std::isfinite (v)) finite = false;
+                outv.push_back (v);
+            }
+            d += n;
+        }
+        const int hh = N / 2; const int mm = N - hh;
+        auto pcIn = [] (int pc) { return pc == 0 || pc == 3 || pc == 5 || pc == 7 || pc == 10; };
+        double isc = 0, osc = 0;
+        for (int note = 48; note <= 84; ++note)
+        {
+            const double hz = 440.0 * std::pow (2.0, (note - 69) / 12.0);
+            const double e = bandRms (outv.data() + hh, mm, hz, sr);
+            if (pcIn (note % 12)) isc += e; else osc += e;
+        }
+        const double hqTon = (isc / 5.0) / (osc / 7.0 + 1e-9);
+        printf ("\n[HQ STFT] finite=%d   in/off tonality: %.2f\n", (int) finite, hqTon);
+        printf ("HQ_OK=%d\n", (int) (finite && hqTon > 1.5));
+        if (! (finite && hqTon > 1.5)) return 1;
+    }
+
     return (changed && tonal) ? 0 : 1;
 }

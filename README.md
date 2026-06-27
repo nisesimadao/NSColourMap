@@ -37,7 +37,7 @@
 | **Mix / Output** | — | ドライ/ウェット、出力 |
 | **Key / Scale** | — | Scale モードのターゲット（12種、Whole Tone・Chromatic 含む） |
 | **Freeze** | On/Off（初期Off） | Off:ノートを離すと止まる / On:最後のコードを保持 |
-| **Quality** | 0 Latency / High Quality | ボイス数・スムージング |
+| **Quality** | 0 Latency / High Quality | 0 Latency=オシレーター核（遅延なし） / High Quality=STFTスペクトラル・スナップ（高音質・レイテンシあり） |
 | **Advanced（ADV）** | — | Gamma・Morph・Gate・Low Cut・High Cut・Side Mute・Multirate |
 
 ## ビジュアライザー

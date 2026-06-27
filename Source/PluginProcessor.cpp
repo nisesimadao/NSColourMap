@@ -46,10 +46,21 @@ void NSColourMapAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
     colourCore.prepare (currentSampleRate);
     formantTone.prepare (currentSampleRate);
     limiter.prepare (currentSampleRate);
+    spectral.prepare (currentSampleRate, 11, numCh);   // 2048-pt STFT (HQ engine)
+    analyzer.prepare (currentSampleRate, 11);          // EQ-style spectrum display
     chordState.reset();
+
+    juce::dsp::ProcessSpec spec;
+    spec.sampleRate = currentSampleRate;
+    spec.maximumBlockSize = (juce::uint32) block;
+    spec.numChannels = (juce::uint32) (numCh * 2); // 0..nc-1 = dry, nc.. = original active
+    dryDelay.prepare (spec);
+    dryDelay.setMaximumDelayInSamples (spectral.getLatency() + 16);
+    dryDelay.reset();
 
     dryBuf.setSize (numCh, block, false, false, true);
     activeBuf.setSize (numCh, block, false, false, true);
+    snapBuf.setSize (numCh, block, false, false, true);
     tunedBuf.setSize (numCh, block, false, false, true);
     transientEnv.assign ((size_t) block, 0.0f);
 
@@ -101,11 +112,23 @@ void NSColourMapAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     const int   keyIdx    = (int) getChoice (parameters, params::key, 0);
     const auto  scaleType = (Scale) (int) getChoice (parameters, params::scale, 7);
     const int   shift     = (int) std::lround (getValue (parameters, params::scaleShift));
-    const int   maxVoices = qualityToMaxVoices ((int) getChoice (parameters, params::quality, 0));
+    const int   qualityIx = (int) getChoice (parameters, params::quality, 0);
+    const int   maxVoices = qualityToMaxVoices (qualityIx);
     const float lowCutHz  = getValue (parameters, params::lowCut);
     const float highCutHz = getValue (parameters, params::highCut);
     const float transAmt  = juce::jlimit (0.0f, 1.5f, getValue (parameters, params::transient) + profile.transientBias);
     const bool  sideMute  = getValue (parameters, params::sideMute) > 0.5f;
+
+    // High Quality runs the STFT spectral snap (adds fftSize latency); 0 Latency
+    // keeps the oscillator core. Update reported latency + dry-path delay on change.
+    const bool engineHQ = (qualityIx == 1);
+    const int  wantLatency = engineHQ ? spectral.getLatency() : 0;
+    if (wantLatency != reportedLatency)
+    {
+        reportedLatency = wantLatency;
+        setLatencySamples (wantLatency);
+        dryDelay.setDelay ((float) wantLatency);
+    }
 
     colorSm.setTargetValue   (getValue (parameters, params::color));
     amountSm.setTargetValue  (getValue (parameters, params::amount));
@@ -161,11 +184,15 @@ void NSColourMapAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         {
             const float g = outputSm.getNextValue();
             for (int ch = 0; ch < numCh; ++ch)
-                buffer.setSample (ch, s, buffer.getSample (ch, s) * g);
+            {
+                dryDelay.pushSample (ch, buffer.getSample (ch, s));      // keep delay aligned
+                buffer.setSample (ch, s, dryDelay.popSample (ch) * g);
+            }
         }
         float* out[2];
         for (int ch = 0; ch < numCh; ++ch) out[ch] = buffer.getWritePointer (ch);
         limiter.process (out, numCh, numSamples);
+        analyzer.pushBlock (out, numCh, numSamples);
 
         // keep block-rate smoothers moving so they are correct when we resume
         colorSm.skip (numSamples); amountSm.skip (numSamples); gateSm.skip (numSamples);
@@ -181,25 +208,49 @@ void NSColourMapAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     uiLowHz.store (affectedRange.getLowHz());
     uiHighHz.store (affectedRange.getHighHz());
 
-    float* dry[2]; float* active[2]; float* tuned[2];
+    float* dry[2]; float* active[2]; float* snap[2]; float* tuned[2];
     const float* in[2];
     for (int ch = 0; ch < numCh; ++ch)
     {
         dry[ch]    = dryBuf.getWritePointer (ch);
         active[ch] = activeBuf.getWritePointer (ch);
+        snap[ch]   = snapBuf.getWritePointer (ch);
         tuned[ch]  = tunedBuf.getWritePointer (ch);
         in[ch]     = buffer.getReadPointer (ch);
         std::copy (in[ch], in[ch] + numSamples, dry[ch]);
     }
 
-    affectedRange.process (dry, active, numCh, numSamples);
+    affectedRange.process (dry, active, numCh, numSamples);     // active = original in-range band
+
+    // snap = the colour source. In HQ it is the STFT pitch-class snap of the active
+    // band; in 0-Latency it is just the active band.
+    for (int ch = 0; ch < numCh; ++ch)
+        std::copy (active[ch], active[ch] + numSamples, snap[ch]);
+
+    if (engineHQ)
+    {
+        spectral.setGrid ((juce::uint16) mask);
+        spectral.setStrength (juce::jlimit (0.3f, 1.0f,
+                              0.3f + 0.7f * amountSm.getCurrentValue() * juce::jmin (colorSm.getCurrentValue(), 1.0f)));
+        spectral.process (snap, numCh, numSamples);            // snapped + delayed by fftSize
+
+        // Delay dry and the ORIGINAL active by the same fftSize so recombination aligns.
+        for (int ch = 0; ch < numCh; ++ch)
+            for (int s = 0; s < numSamples; ++s)
+            {
+                dryDelay.pushSample (ch,          dry[ch][s]);
+                dryDelay.pushSample (numCh + ch,  active[ch][s]);
+                dry[ch][s]    = dryDelay.popSample (ch);
+                active[ch][s] = dryDelay.popSample (numCh + ch);
+            }
+    }
 
     for (int ch = 0; ch < numCh; ++ch)
-        std::copy (active[ch], active[ch] + numSamples, tuned[ch]); // core works on the copy
+        std::copy (snap[ch], snap[ch] + numSamples, tuned[ch]); // core colours the snapped band
 
-    // Transient envelope on the dry active band.
+    // Transient envelope on the (snapped) colour-source band.
     float flash = 0.0f;
-    transientDetector.process (active, numCh, numSamples, transientEnv.data(), flash);
+    transientDetector.process (snap, numCh, numSamples, transientEnv.data(), flash);
     uiTransientFlash.store (flash);
 
     // ── Colour mapping core ───────────────────────────────────────────────────
@@ -215,7 +266,7 @@ void NSColourMapAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     cset.profile    = profile;
 
     ColourMappingCore::Energies energies;
-    colourCore.process (tuned, active, numCh, numSamples, cset, energies);
+    colourCore.process (tuned, snap, numCh, numSamples, cset, energies); // baseline = snapped band
 
     uiInputEnergy.store (energies.input);
     uiTunedEnergy.store (energies.tuned);
@@ -262,6 +313,7 @@ void NSColourMapAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     for (int ch = 0; ch < numCh; ++ch)
         out[ch] = buffer.getWritePointer (ch);
     limiter.process (out, numCh, numSamples);
+    analyzer.pushBlock (out, numCh, numSamples);
 
     uiMidiActivity.store (juce::jmax (0.0f, uiMidiActivity.load() - 0.03f));
 }

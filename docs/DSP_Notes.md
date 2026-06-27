@@ -111,6 +111,24 @@ and transient-safe):
 - **Loudness makeup** — the core caps the processed level at ~1.2× the input
   envelope, so pushing COLOR is loudness-neutral and never clips.
 
+## High Quality = STFT spectral snap (spec §12.3 / Phase 9)
+
+`Quality = High Quality` runs `SpectralMapper`: a 2048-pt Hann overlap-add FFT
+(75% overlap) that snaps the active band to the grid — a bin is kept (and gently
+emphasised) if it *contains* an in-scale note, otherwise attenuated. "Contains a
+scale note" (rather than per-bin pitch-class rounding) preserves coarse low-freq
+bins so the bass isn't damaged. This adds `fftSize` latency, so the processor
+reports it and delays the dry + original-active paths through a `DelayLine` to keep
+the recombination aligned; `0 Latency` keeps the oscillator core (0 latency).
+The off-key-rejection is real (measured in/off tonality on an off-scale saw rises
+above the 0-Latency engine).
+
+## Spectrum analyzer (UI)
+
+`SpectrumAnalyzer` runs a 2048-pt magnitude FFT on the output (75% overlap) and
+writes 128 log-spaced, peak-smoothed bins to atomics. `VisualizerView` draws them
+as an EQ-style curve behind the pitch lanes (audio thread writes, UI reads).
+
 ## MVP simplifications
 
 - Resonator coefficients update per block; glide is internal (~30 ms × character).
