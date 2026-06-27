@@ -306,7 +306,11 @@ void VisualizerView::paint (juce::Graphics& g)
 
 // ── KeyboardView ──────────────────────────────────────────────────────────────
 
-KeyboardView::KeyboardView (NSColourMapAudioProcessor& p) : processor (p) { startTimerHz (20); }
+KeyboardView::KeyboardView (NSColourMapAudioProcessor& p) : processor (p)
+{
+    setMouseCursor (juce::MouseCursor::PointingHandCursor);
+    startTimerHz (20);
+}
 KeyboardView::~KeyboardView() { stopTimer(); }
 
 void KeyboardView::timerCallback()
@@ -319,6 +323,48 @@ void KeyboardView::timerCallback()
         lastTarget = t; lastHeld = h; lastRoot = r;
         repaint();
     }
+}
+
+int KeyboardView::pitchClassAt (juce::Point<float> p) const
+{
+    const auto bounds = getLocalBounds().toFloat().reduced (1.0f);
+    const int whiteCount = 14;
+    const float kbX = bounds.getX() + 4.0f, kbY = bounds.getY() + 3.0f;
+    const float kbW = bounds.getWidth() - 8.0f, kbH = bounds.getHeight() - 6.0f;
+    const float whiteW = kbW / (float) whiteCount;
+    static constexpr int whitePcs[7]   = { 0, 2, 4, 5, 7, 9, 11 };
+    static constexpr int blackAfter[7] = { 1, 1, 0, 1, 1, 1, 0 };
+    const float blackW = whiteW * 0.62f, blackH = kbH * 0.6f;
+
+    // Black keys are on top — test them first.
+    for (int i = 0; i < whiteCount; ++i)
+    {
+        if (! blackAfter[i % 7]) continue;
+        const float bx = kbX + (i + 1) * whiteW - blackW * 0.5f;
+        if (juce::Rectangle<float> (bx, kbY, blackW, blackH).contains (p))
+            return (whitePcs[i % 7] + 1) % 12;
+    }
+    if (p.x < kbX || p.x > kbX + kbW) return -1;
+    const int idx = juce::jlimit (0, whiteCount - 1, (int) ((p.x - kbX) / whiteW));
+    return whitePcs[idx % 7];
+}
+
+void KeyboardView::mouseDown (const juce::MouseEvent& e)
+{
+    const int pc = pitchClassAt (e.position);
+    if (pc < 0) return;
+
+    auto& s = processor.getState();
+    if (choiceIndex (s, nscm::params::mode) == 3) // UI grid: toggle the clicked note
+    {
+        const juce::uint32 m = processor.getCustomMask() ^ (1u << pc);
+        processor.setCustomMask (m);
+    }
+    else // otherwise set the root (Key)
+    {
+        setChoice (s, nscm::params::key, pc);
+    }
+    repaint();
 }
 
 void KeyboardView::paint (juce::Graphics& g)

@@ -42,9 +42,11 @@ public:
     explicit KeyboardView (NSColourMapAudioProcessor&);
     ~KeyboardView() override;
     void paint (juce::Graphics&) override;
+    void mouseDown (const juce::MouseEvent&) override;
 
 private:
     void timerCallback() override;
+    int pitchClassAt (juce::Point<float>) const;
     NSColourMapAudioProcessor& processor;
     juce::uint32 lastTarget = 0, lastHeld = 0;
     int lastRoot = -1;

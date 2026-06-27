@@ -133,7 +133,12 @@ void NSColourMapAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     juce::uint16 mask = scaleMask;
     if (modeIdx == 1) mask = midiMask;                          // MIDI
     else if (modeIdx == 2) mask = (juce::uint16) (scaleMask | midiMask); // Hybrid
-    // Scale (0) and UI (3) use the scale mask.
+    else if (modeIdx == 3)                                      // UI: clicked notes
+    {
+        const auto cm = (juce::uint16) uiCustomMask.load();
+        mask = cm != 0 ? cm : scaleMask;                       // fall back to scale until notes are picked
+    }
+    // Scale (0) uses the scale mask.
 
     // The grid is "active" when there are target notes. When MIDI notes are
     // released (and Freeze is off) the mask becomes 0; we keep the last targets
@@ -276,7 +281,10 @@ void NSColourMapAudioProcessor::setStateInformation (const void* data, int sizeI
 {
     if (auto xml = getXmlFromBinary (data, sizeInBytes))
         if (xml->hasTagName (parameters.state.getType()))
+        {
             parameters.replaceState (juce::ValueTree::fromXml (*xml));
+            uiCustomMask.store ((juce::uint32) (int) parameters.state.getProperty ("customGrid", 0) & 0xFFFu);
+        }
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
