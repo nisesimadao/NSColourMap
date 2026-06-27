@@ -1,6 +1,7 @@
 #pragma once
 
 #include <juce_audio_processors/juce_audio_processors.h>
+#include <array>
 #include <atomic>
 #include <vector>
 
@@ -49,6 +50,12 @@ public:
 
     APVTS& getState() { return parameters; }
 
+    // ── Snapshots A/B/C/D (message-thread only) ───────────────────────────────
+    static constexpr int kNumSnapshots = 4;
+    void storeSnapshot (int index);
+    bool recallSnapshot (int index);
+    bool isSnapshotFilled (int index) const;
+
     // ── UI state (lock-free) ──────────────────────────────────────────────────
     float getMidiActivity()    const noexcept { return uiMidiActivity.load(); }
     float getTransientFlash()  const noexcept { return uiTransientFlash.load(); }
@@ -75,6 +82,8 @@ private:
 
     juce::AudioBuffer<float> dryBuf, lowBuf, highBuf, dryHighBuf;
     std::vector<float>       transientEnv;
+
+    std::array<juce::ValueTree, kNumSnapshots> snapshots;
 
     // Smoothed macros
     juce::SmoothedValue<float> mixSmoothed, outputSmoothed, amountSmoothed, colourSmoothed, formantSmoothed;

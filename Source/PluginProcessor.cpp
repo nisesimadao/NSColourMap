@@ -237,17 +237,74 @@ juce::AudioProcessorEditor* NSColourMapAudioProcessor::createEditor()
     return new NSColourMapAudioProcessorEditor (*this);
 }
 
+void NSColourMapAudioProcessor::storeSnapshot (int index)
+{
+    if (index >= 0 && index < kNumSnapshots)
+        snapshots[(size_t) index] = parameters.copyState();
+}
+
+bool NSColourMapAudioProcessor::recallSnapshot (int index)
+{
+    if (index < 0 || index >= kNumSnapshots || ! snapshots[(size_t) index].isValid())
+        return false;
+
+    parameters.replaceState (snapshots[(size_t) index].createCopy());
+    return true;
+}
+
+bool NSColourMapAudioProcessor::isSnapshotFilled (int index) const
+{
+    return index >= 0 && index < kNumSnapshots && snapshots[(size_t) index].isValid();
+}
+
 void NSColourMapAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    if (auto xml = parameters.copyState().createXml())
-        copyXmlToBinary (*xml, destData);
+    juce::XmlElement root ("NSColourMapState");
+
+    if (auto stateXml = parameters.copyState().createXml())
+        root.addChildElement (stateXml.release());
+
+    for (int i = 0; i < kNumSnapshots; ++i)
+    {
+        if (! snapshots[(size_t) i].isValid())
+            continue;
+        if (auto snapXml = snapshots[(size_t) i].createXml())
+        {
+            auto* slot = root.createNewChildElement ("Snapshot");
+            slot->setAttribute ("index", i);
+            slot->addChildElement (snapXml.release());
+        }
+    }
+
+    copyXmlToBinary (root, destData);
 }
 
 void NSColourMapAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    if (auto xml = getXmlFromBinary (data, sizeInBytes))
-        if (xml->hasTagName (parameters.state.getType()))
-            parameters.replaceState (juce::ValueTree::fromXml (*xml));
+    auto xml = getXmlFromBinary (data, sizeInBytes);
+    if (! xml)
+        return;
+
+    if (xml->hasTagName ("NSColourMapState"))
+    {
+        if (auto* stateXml = xml->getChildByName (parameters.state.getType()))
+            parameters.replaceState (juce::ValueTree::fromXml (*stateXml));
+
+        for (auto& s : snapshots)
+            s = {};
+
+        for (auto* slot : xml->getChildWithTagNameIterator ("Snapshot"))
+        {
+            const int index = slot->getIntAttribute ("index", -1);
+            if (index >= 0 && index < kNumSnapshots)
+                if (auto* snapXml = slot->getFirstChildElement())
+                    snapshots[(size_t) index] = juce::ValueTree::fromXml (*snapXml);
+        }
+    }
+    else if (xml->hasTagName (parameters.state.getType())) // backward compatibility
+    {
+        parameters.replaceState (juce::ValueTree::fromXml (*xml));
+    }
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

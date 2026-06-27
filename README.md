@@ -71,10 +71,18 @@ ctest --test-dir build            # DSP smoke tests
 
 Artefacts: `build/NSColourMap_artefacts/Release/{VST3,AU}/`.
 
+## Presets & Snapshots
+
+- **Presets** — pick a starting point from the header preset menu (10 factory
+  presets, spec §23 / §27).
+- **Snapshots A/B/C/D** — quick A/B of full settings. Click an empty slot to
+  **store**, click a filled slot to **recall**, **Alt-click** to overwrite.
+  Snapshots are saved with the project.
+
 ## Status
 
-MVP per [`docs/NSColourMap_Spec.md`](docs/NSColourMap_Spec.md). Presets, snapshot
-A/B/C/D, advanced parameter UI and STFT mapping are planned for later versions.
+MVP + v1 presets/snapshots per [`docs/NSColourMap_Spec.md`](docs/NSColourMap_Spec.md).
+Auto gain, advanced parameter UI and STFT mapping are planned for later versions.
 
 ## License
 
