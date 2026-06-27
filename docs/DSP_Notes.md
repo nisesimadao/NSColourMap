@@ -89,6 +89,11 @@ Hyper at COLOR 200% is ~4.7× brighter above 3.5 kHz than the dry input).
 - **Hybrid** — union of scale ∪ MIDI (stay in key, emphasise played notes).
 - **UI** — MVP uses the scale grid (UI keyboard editing is v1+).
 
+In MIDI mode, releasing all notes (with Freeze off, the default) clears the grid;
+a `colourGain` smoother (~80 ms) fades the colour out and the processor then
+idles (passes the dry signal through) so nothing keeps sounding. Scale/Hybrid
+modes always have a grid, so they stay active by design.
+
 ## MVP simplifications
 
 - Resonator coefficients update per block; glide is internal (~30 ms × character).

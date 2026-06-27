@@ -34,7 +34,7 @@ The big **COLOR** knob is all you need to start — everything else is fine-tuni
 | **Transient** | 0–150% | Lets attacks pass through dry |
 | **Mix / Output** | — | Dry/wet and output gain |
 | **Key / Scale** | — | Scale Grid target notes (12 scales incl. Whole Tone, Chromatic) |
-| **Freeze** | On/Off | Holds the last MIDI chord after note-off |
+| **Freeze** | On/Off (default Off) | Off: the colour stops when you release the notes. On: holds the last chord |
 | **Quality** | 0 Latency / High Quality | Voice count / smoothing |
 | **Advanced** | — | Gamma · Morph · Gate · Low Cut · High Cut · Side Mute · Multirate |
 
