@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+
 #include <array>
 #include <cmath>
 
@@ -71,11 +73,11 @@ public:
         for (int ch = 0; ch < 2; ++ch)
         {
             for (int i = 0; i < 3; ++i)
-                peaks[(size_t) ch][(size_t) i].setPeak (baseHz[(size_t) i] * ratio, 3.0f, gain, sampleRate);
+                peaks[(std::size_t) ch][(std::size_t) i].setPeak (baseHz[(std::size_t) i] * ratio, 3.0f, gain, sampleRate);
 
             // Tilt: a broad shelf-ish peak. Formant up -> brighter, down -> darker.
             const float tiltHz = formantSemitones >= 0.0f ? 4000.0f : 300.0f;
-            tilt[(size_t) ch].setPeak (tiltHz, 0.7f, std::abs (formantSemitones) * 0.25f, sampleRate);
+            tilt[(std::size_t) ch].setPeak (tiltHz, 0.7f, std::abs (formantSemitones) * 0.25f, sampleRate);
         }
         active = amount > 0.001f;
     }
@@ -92,8 +94,8 @@ public:
             {
                 float x = data[s];
                 for (int i = 0; i < 3; ++i)
-                    x = peaks[(size_t) ch][(size_t) i].process (x);
-                x = tilt[(size_t) ch].process (x);
+                    x = peaks[(std::size_t) ch][(std::size_t) i].process (x);
+                x = tilt[(std::size_t) ch].process (x);
                 data[s] = x;
             }
         }

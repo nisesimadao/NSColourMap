@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+
 #include <array>
 #include <cstdint>
 
@@ -24,9 +26,9 @@ public:
         if (note < 0 || note > 127)
             return;
 
-        if (! held[(size_t) note])
+        if (! held[(std::size_t) note])
         {
-            held[(size_t) note] = true;
+            held[(std::size_t) note] = true;
             ++heldCount;
         }
 
@@ -39,9 +41,9 @@ public:
         if (note < 0 || note > 127)
             return;
 
-        if (held[(size_t) note])
+        if (held[(std::size_t) note])
         {
-            held[(size_t) note] = false;
+            held[(std::size_t) note] = false;
             --heldCount;
         }
 
@@ -76,7 +78,7 @@ private:
         lowestHeldNote = -1;
         for (int n = 0; n < 128; ++n)
         {
-            if (held[(size_t) n])
+            if (held[(std::size_t) n])
             {
                 liveMask |= static_cast<std::uint16_t> (1u << (n % 12));
                 if (lowestHeldNote < 0)
