@@ -4,7 +4,6 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <array>
 #include <memory>
-#include <vector>
 
 #include "PluginProcessor.h"
 
@@ -21,21 +20,22 @@ public:
     void drawComboBox (juce::Graphics&, int w, int h, bool isDown, int bx, int by, int bw, int bh, juce::ComboBox&) override;
 };
 
-// ── Spectrum / pitch-lane diagnostic view (spec §12.4) ────────────────────────
-class SpectrumMapView final : public juce::Component, private juce::Timer
+// ── DRY / TUNED / COLORED visualizer (spec §6) ────────────────────────────────
+class VisualizerView final : public juce::Component, private juce::Timer
 {
 public:
-    explicit SpectrumMapView (NSColourMapAudioProcessor&);
-    ~SpectrumMapView() override;
+    explicit VisualizerView (NSColourMapAudioProcessor&);
+    ~VisualizerView() override;
     void paint (juce::Graphics&) override;
 
 private:
     void timerCallback() override;
+    float freqToX (float hz, juce::Rectangle<float> plot) const;
     NSColourMapAudioProcessor& processor;
-    float energySmoothed = 0.0f;
+    float inSm = 0.0f, tunedSm = 0.0f, colSm = 0.0f;
 };
 
-// ── Keyboard view: highlights target + held pitch classes ─────────────────────
+// ── Keyboard: scale / MIDI / root highlight ───────────────────────────────────
 class KeyboardView final : public juce::Component, private juce::Timer
 {
 public:
@@ -47,6 +47,7 @@ private:
     void timerCallback() override;
     NSColourMapAudioProcessor& processor;
     juce::uint32 lastTarget = 0, lastHeld = 0;
+    int lastRoot = -1;
 };
 
 // ── Editor ────────────────────────────────────────────────────────────────────
@@ -66,60 +67,59 @@ private:
 
     void configureKnob (juce::Slider&, juce::Label&, const juce::String&);
     void configureTab (juce::TextButton&, int index);
-    void configureRadio (juce::TextButton&, const char* paramId, int valueIndex, int radioGroup);
+    void configureRadio (juce::TextButton&, const char* paramId, int valueIndex);
     void setCurrentTab (int);
     void timerCallback() override;
     void syncRadios();
-    void handleSnapshot (int index);
+    void updateMainVisibility();
 
     NSColourMapAudioProcessor& audioProcessor;
     NSColourMapLookAndFeel lnf;
     juce::TooltipWindow tooltip { this, 600 };
 
-    // Preset selector
-    juce::ComboBox presetBox;
-
     // Header
     juce::Label      logoLabel;
+    juce::ComboBox   presetBox;
+    juce::Component  midiIndicator;
+    juce::TextButton qualityButton { "0 Lat" };
+    juce::TextButton advancedButton { "ADV" };
     juce::TextButton mainTab  { "Main" };
     juce::TextButton aboutTab { "About" };
-    juce::Component  midiIndicator;
-    juce::Label      statusLabel;
+
+    // Key strip
+    std::array<juce::TextButton, 4> gridModeButtons {
+        juce::TextButton { "Scale" }, juce::TextButton { "MIDI" },
+        juce::TextButton { "Hybrid" }, juce::TextButton { "UI" } };
+    juce::ComboBox keyBox, scaleBox;
+    juce::Slider   scaleShiftKnob;
+    juce::Label    scaleShiftLabel;
+    juce::ToggleButton freezeButton { "Freeze" };
 
     // Views
-    SpectrumMapView spectrum;
-    KeyboardView    keyboard;
+    VisualizerView visualizer;
+    KeyboardView   keyboard;
 
-    // Mode + Algo radios
-    juce::TextButton chordModeBtn { "MIDI Chord" };
-    juce::TextButton scaleModeBtn { "Scale Resonance" };
-    std::array<juce::TextButton, 5> algoButtons {
-        juce::TextButton { "Clean" }, juce::TextButton { "Colour" }, juce::TextButton { "Hyper" },
-        juce::TextButton { "HiTECH" }, juce::TextButton { "Broken" } };
+    // Big COLOR + main knobs
+    juce::Slider colorKnob, amountKnob, formantKnob, transientKnob, mixKnob, outputKnob;
+    juce::Label  colorLabel, amountLabel, formantLabel, transientLabel, mixLabel, outputLabel;
 
-    // Key / Scale / Quality / Freeze / Scale Shift
-    juce::ComboBox keyBox, scaleBox, qualityBox;
-    juce::Label    keyLabel, scaleLabel, qualityLabel, scaleShiftLabel;
-    juce::ToggleButton freezeButton { "Freeze" };
-    juce::Slider   scaleShiftSlider;
+    // Character row
+    std::array<juce::TextButton, 5> characterButtons {
+        juce::TextButton { "Clean" }, juce::TextButton { "Color" }, juce::TextButton { "Hyper" },
+        juce::TextButton { "Alien" }, juce::TextButton { "Glitch" } };
 
-    // Macro knobs
-    juce::Slider amountKnob, glideKnob, colourKnob, formantKnob;
-    juce::Label  amountLabel, glideLabel, colourLabel, formantLabel;
-    // Utility knobs
-    juce::Slider subKnob, transientKnob, mixKnob, outputKnob;
-    juce::Label  subLabel, transientLabel, mixLabel, outputLabel;
+    // Advanced drawer
+    juce::Slider gammaKnob, morphKnob, gateKnob, lowCutKnob, highCutKnob;
+    juce::Label  gammaLabel, morphLabel, gateLabel, lowCutLabel, highCutLabel;
+    juce::ToggleButton sideMuteButton { "Side Mute" }, multirateButton { "Multirate" };
 
-    // Snapshot placeholders (spec v1)
-    std::array<juce::TextButton, 4> snapshots {
-        juce::TextButton { "A" }, juce::TextButton { "B" }, juce::TextButton { "C" }, juce::TextButton { "D" } };
+    int  currentTab = 0;
+    bool showAdvanced = false;
 
-    int currentTab = 0;
-
-    std::unique_ptr<SliderAttachment>   amountAtt, glideAtt, colourAtt, formantAtt,
-                                        subAtt, transientAtt, mixAtt, outputAtt, scaleShiftAtt;
-    std::unique_ptr<ComboBoxAttachment> keyAtt, scaleAtt, qualityAtt;
-    std::unique_ptr<ButtonAttachment>   freezeAtt;
+    std::unique_ptr<SliderAttachment>   colorAtt, amountAtt, formantAtt, transientAtt, mixAtt, outputAtt,
+                                        scaleShiftAtt, gammaAtt, morphAtt, gateAtt, lowCutAtt, highCutAtt;
+    std::unique_ptr<ComboBoxAttachment> keyAtt, scaleAtt;
+    std::unique_ptr<ButtonAttachment>   freezeAtt, sideMuteAtt, multirateAtt;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NSColourMapAudioProcessorEditor)
 };

@@ -4,11 +4,26 @@
 #include "dsp/ScaleNoteSet.h"
 #include "dsp/MidiChordState.h"
 #include "dsp/TargetNoteGenerator.h"
+#include "dsp/ColourMappingCore.h"
+#include "dsp/CharacterModes.h"
 
 #include <cstdio>
 #include <cmath>
+#include <vector>
+#include <random>
 
 static int failures = 0;
+
+// RMS energy in a narrow band around 'freq', measured with a stable SVF bandpass
+// detector (Goertzel is numerically unreliable on long broadband signals).
+static double bandRms (const std::vector<float>& x, double freq, double sr)
+{
+    nscm::SvfResonator det;
+    det.setCoeffs ((float) freq, 20.0f, (float) sr);
+    double acc = 0.0;
+    for (float v : x) { const float bp = det.processBandpass (v); acc += (double) bp * bp; }
+    return std::sqrt (acc / (double) x.size());
+}
 
 #define CHECK(cond)                                                         \
     do {                                                                    \
@@ -82,6 +97,61 @@ int main()
 
         // A440 sanity: MIDI 69 -> ~440 Hz.
         CHECK (std::abs (midiNoteToHz (69.0f) - 440.0f) < 0.01f);
+    }
+
+    // ── ColourMappingCore audibility ──────────────────────────────────────────
+    // The previous build was inaudible; the core must (a) keep the wet as loud as
+    // the input and (b) concentrate broadband energy onto the pitch grid.
+    {
+        const double sr = 48000.0;
+        const int    N  = 24000;
+        ColourMappingCore core;
+        core.prepare (sr);
+
+        TargetNoteList list;            // single grid note: A4 = 440 Hz
+        list.count = 1; list.notes[0] = 69; list.freqs[0] = 440.0f;
+        core.setTargets (list, 32);
+
+        std::mt19937 rng (1);
+        std::uniform_real_distribution<float> dist (-0.3f, 0.3f);
+        std::vector<float> inL ((size_t) N), inR ((size_t) N), outL ((size_t) N), outR ((size_t) N);
+        for (int i = 0; i < N; ++i) { inL[(size_t) i] = dist (rng); inR[(size_t) i] = dist (rng); }
+
+        ColourMappingCore::Settings s;
+        s.color01 = 1.0f; s.colorBoost = 0.0f; s.amount = 1.0f; s.gate = 0.0f;
+        s.profile = getCharacterProfile (Character::color);
+
+        const int B = 256;
+        std::vector<float> tL ((size_t) B), tR ((size_t) B), dL ((size_t) B), dR ((size_t) B);
+        for (int off = 0; off < N; off += B)
+        {
+            const int n = std::min (B, N - off);
+            for (int i = 0; i < n; ++i)
+            {
+                tL[(size_t) i] = dL[(size_t) i] = inL[(size_t) (off + i)];
+                tR[(size_t) i] = dR[(size_t) i] = inR[(size_t) (off + i)];
+            }
+            float* tuned[2]   = { tL.data(), tR.data() };
+            const float* dry[2] = { dL.data(), dR.data() };
+            ColourMappingCore::Energies e;
+            core.process (tuned, dry, 2, n, s, e);
+            for (int i = 0; i < n; ++i) { outL[(size_t) (off + i)] = tL[(size_t) i]; outR[(size_t) (off + i)] = tR[(size_t) i]; }
+        }
+
+        // Analyse the settled second half.
+        std::vector<float> inHalf (inL.begin() + N / 2, inL.end());
+        std::vector<float> outHalf (outL.begin() + N / 2, outL.end());
+        auto rms = [] (const std::vector<float>& v) { double a = 0; for (float x : v) a += (double) x * x; return std::sqrt (a / (double) v.size()); };
+
+        const double inRms  = rms (inHalf);
+        const double outRms = rms (outHalf);
+        const double e440   = bandRms (outHalf, 440.0, sr);
+        const double e1000  = bandRms (outHalf, 1000.0, sr);
+        const double e440In = bandRms (inHalf, 440.0, sr);
+
+        CHECK (outRms > 0.3 * inRms);   // wet is present / audible
+        CHECK (e440 > 4.0 * e1000);     // energy concentrated on the grid note
+        CHECK (e440 > 3.0 * e440In);    // grid note emphasised vs raw input
     }
 
     if (failures == 0)

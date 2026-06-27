@@ -32,12 +32,7 @@ NSColourMapAudioProcessor::NSColourMapAudioProcessor()
 
 int NSColourMapAudioProcessor::qualityToMaxVoices (int quality) const noexcept
 {
-    switch (quality)
-    {
-        case 0:  return 12; // Eco
-        case 2:  return 32; // High
-        default: return 24; // Normal
-    }
+    return quality == 1 ? 32 : 24; // High Quality : 0 Latency
 }
 
 void NSColourMapAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
@@ -46,32 +41,32 @@ void NSColourMapAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
     const int numCh = juce::jmax (getTotalNumInputChannels(), getTotalNumOutputChannels(), 2);
     const int block = juce::jmax (16, samplesPerBlock);
 
-    subSplitter.prepare (currentSampleRate, block, numCh);
+    affectedRange.prepare (currentSampleRate, block, numCh);
     transientDetector.prepare (currentSampleRate);
-    resonatorBank.prepare (currentSampleRate, block);
-    colourProcessor.prepare (currentSampleRate);
+    colourCore.prepare (currentSampleRate);
     formantTone.prepare (currentSampleRate);
     limiter.prepare (currentSampleRate);
     chordState.reset();
 
     dryBuf.setSize (numCh, block, false, false, true);
-    lowBuf.setSize (numCh, block, false, false, true);
-    highBuf.setSize (numCh, block, false, false, true);
-    dryHighBuf.setSize (numCh, block, false, false, true);
+    activeBuf.setSize (numCh, block, false, false, true);
+    tunedBuf.setSize (numCh, block, false, false, true);
     transientEnv.assign ((size_t) block, 0.0f);
 
-    const double ramp = 0.02;
-    mixSmoothed.reset (currentSampleRate, ramp);
-    outputSmoothed.reset (currentSampleRate, ramp);
-    amountSmoothed.reset (currentSampleRate, ramp);
-    colourSmoothed.reset (currentSampleRate, ramp);
-    formantSmoothed.reset (currentSampleRate, 0.05);
+    const double ramp = 0.03;
+    for (auto* s : { &colorSm, &amountSm, &mixSm, &outputSm, &gammaSm, &gateSm })
+        s->reset (currentSampleRate, ramp);
+    formantSm.reset (currentSampleRate, 0.06);
 
-    mixSmoothed.setCurrentAndTargetValue (getValue (parameters, params::mix));
-    outputSmoothed.setCurrentAndTargetValue (juce::Decibels::decibelsToGain (getValue (parameters, params::output)));
-    amountSmoothed.setCurrentAndTargetValue (getValue (parameters, params::amount));
-    colourSmoothed.setCurrentAndTargetValue (getValue (parameters, params::colour));
-    formantSmoothed.setCurrentAndTargetValue (getValue (parameters, params::formant));
+    colorSm.setCurrentAndTargetValue   (getValue (parameters, params::color));
+    amountSm.setCurrentAndTargetValue  (getValue (parameters, params::amount));
+    mixSm.setCurrentAndTargetValue     (getValue (parameters, params::mix));
+    outputSm.setCurrentAndTargetValue  (juce::Decibels::decibelsToGain (getValue (parameters, params::output)));
+    formantSm.setCurrentAndTargetValue (getValue (parameters, params::formant));
+    gammaSm.setCurrentAndTargetValue   (getValue (parameters, params::gamma));
+    gateSm.setCurrentAndTargetValue    (getValue (parameters, params::gate));
+
+    setLatencySamples (0);
 }
 
 void NSColourMapAudioProcessor::releaseResources() {}
@@ -97,25 +92,28 @@ void NSColourMapAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         return;
 
     // ── Parameters ────────────────────────────────────────────────────────────
-    const int   modeIdx    = (int) getChoice (parameters, params::mode, 0);
-    const auto  algo       = (Algo) (int) getChoice (parameters, params::algo, 1);
-    const auto& profile    = getAlgoProfile (algo);
-    const bool  freeze     = getValue (parameters, params::freezeChord) > 0.5f;
-    const int   keyIdx     = (int) getChoice (parameters, params::key, 0);
-    const auto  scaleType  = (Scale) (int) getChoice (parameters, params::scale, 7);
-    const int   shift      = (int) std::lround (getValue (parameters, params::scaleShift));
-    const int   maxVoices  = qualityToMaxVoices ((int) getChoice (parameters, params::quality, 1));
-    const float subHz      = getValue (parameters, params::subProtect);
-    const float glideMs    = getValue (parameters, params::glide) * profile.glideScale;
-    const float transAmt   = juce::jlimit (0.0f, 1.5f, getValue (parameters, params::transient) + profile.transientBias);
+    const int   modeIdx   = (int) getChoice (parameters, params::mode, 0);
+    const auto  character = (Character) (int) getChoice (parameters, params::character, 1);
+    const auto& profile   = getCharacterProfile (character);
+    const bool  freeze    = getValue (parameters, params::midiFreeze) > 0.5f;
+    const int   keyIdx    = (int) getChoice (parameters, params::key, 0);
+    const auto  scaleType = (Scale) (int) getChoice (parameters, params::scale, 7);
+    const int   shift     = (int) std::lround (getValue (parameters, params::scaleShift));
+    const int   maxVoices = qualityToMaxVoices ((int) getChoice (parameters, params::quality, 0));
+    const float lowCutHz  = getValue (parameters, params::lowCut);
+    const float highCutHz = getValue (parameters, params::highCut);
+    const float transAmt  = juce::jlimit (0.0f, 1.5f, getValue (parameters, params::transient) + profile.transientBias);
+    const bool  sideMute  = getValue (parameters, params::sideMute) > 0.5f;
 
-    amountSmoothed.setTargetValue (getValue (parameters, params::amount));
-    colourSmoothed.setTargetValue (getValue (parameters, params::colour));
-    formantSmoothed.setTargetValue (getValue (parameters, params::formant));
-    mixSmoothed.setTargetValue (getValue (parameters, params::mix));
-    outputSmoothed.setTargetValue (juce::Decibels::decibelsToGain (getValue (parameters, params::output)));
+    colorSm.setTargetValue   (getValue (parameters, params::color));
+    amountSm.setTargetValue  (getValue (parameters, params::amount));
+    mixSm.setTargetValue     (getValue (parameters, params::mix));
+    outputSm.setTargetValue  (juce::Decibels::decibelsToGain (getValue (parameters, params::output)));
+    formantSm.setTargetValue (getValue (parameters, params::formant));
+    gammaSm.setTargetValue   (getValue (parameters, params::gamma));
+    gateSm.setTargetValue    (getValue (parameters, params::gate));
 
-    // ── MIDI handling ─────────────────────────────────────────────────────────
+    // ── MIDI ──────────────────────────────────────────────────────────────────
     bool sawNote = false;
     for (const auto meta : midi)
     {
@@ -127,99 +125,97 @@ void NSColourMapAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     if (sawNote)
         uiMidiActivity.store (1.0f);
 
-    // ── Target generation ─────────────────────────────────────────────────────
-    juce::uint16 targetMask = 0;
-    if (modeIdx == 0) // MIDI Chord
-        targetMask = chordState.getActiveMask (freeze);
-    else              // Scale Resonance
-        targetMask = makeScaleNoteSet (keyIdx, scaleType).mask;
+    // ── Pitch grid ────────────────────────────────────────────────────────────
+    const juce::uint16 scaleMask = makeScaleNoteSet (keyIdx, scaleType).mask;
+    const juce::uint16 midiMask  = chordState.getActiveMask (freeze);
+    juce::uint16 mask = scaleMask;
+    if (modeIdx == 1) mask = midiMask;                          // MIDI
+    else if (modeIdx == 2) mask = (juce::uint16) (scaleMask | midiMask); // Hybrid
+    // Scale (0) and UI (3) use the scale mask.
 
-    fillTargetNotes (targets, targetMask, shift, maxVoices);
-    resonatorBank.setTargets (targets, maxVoices);
+    fillTargetNotes (targets, mask, shift, maxVoices);
+    colourCore.setTargets (targets, maxVoices);
 
-    uiHeldMask.store (chordState.getActiveMask (false));
-    uiTargetMask.store (targetMask);
-    uiVoiceCount.store (resonatorBank.getActiveCount());
-    uiSubHz.store (subHz);
+    uiHeldMask.store (midiMask);
+    uiTargetMask.store (mask);
+    uiVoiceCount.store (colourCore.getActiveVoiceCount());
 
-    // ── Sub split ─────────────────────────────────────────────────────────────
-    subSplitter.setCrossoverFrequency (subHz);
+    // ── Affected range split ──────────────────────────────────────────────────
+    affectedRange.setRange (lowCutHz, highCutHz);
+    uiLowHz.store (affectedRange.getLowHz());
+    uiHighHz.store (affectedRange.getHighHz());
 
-    float* dry[2];  float* low[2];  float* high[2];  float* dryHigh[2];
+    float* dry[2]; float* active[2]; float* tuned[2];
     const float* in[2];
     for (int ch = 0; ch < numCh; ++ch)
     {
-        dry[ch]     = dryBuf.getWritePointer (ch);
-        low[ch]     = lowBuf.getWritePointer (ch);
-        high[ch]    = highBuf.getWritePointer (ch);
-        dryHigh[ch] = dryHighBuf.getWritePointer (ch);
-        in[ch]      = buffer.getReadPointer (ch);
-        std::copy (in[ch], in[ch] + numSamples, dry[ch]); // original signal
+        dry[ch]    = dryBuf.getWritePointer (ch);
+        active[ch] = activeBuf.getWritePointer (ch);
+        tuned[ch]  = tunedBuf.getWritePointer (ch);
+        in[ch]     = buffer.getReadPointer (ch);
+        std::copy (in[ch], in[ch] + numSamples, dry[ch]);
     }
 
-    subSplitter.process (dry, low, high, numCh, numSamples);
+    affectedRange.process (dry, active, numCh, numSamples);
 
-    // Keep a dry copy of the high band for transient return + dry/wet.
     for (int ch = 0; ch < numCh; ++ch)
-        std::copy (high[ch], high[ch] + numSamples, dryHigh[ch]);
+        std::copy (active[ch], active[ch] + numSamples, tuned[ch]); // core works on the copy
 
-    // Transient envelope (on the dry high band).
+    // Transient envelope on the dry active band.
     float flash = 0.0f;
-    transientDetector.process (dryHigh, numCh, numSamples, transientEnv.data(), flash);
+    transientDetector.process (active, numCh, numSamples, transientEnv.data(), flash);
     uiTransientFlash.store (flash);
 
-    // ── Wet chain: Resonator -> Colour -> Pseudo Formant ───────────────────────
-    ResonatorBank::Tuning rt;
-    const float colourNow = colourSmoothed.getCurrentValue();
-    rt.q           = profile.qBase + colourNow * profile.qColour;
-    rt.drive       = profile.driveBase;
-    rt.stereoCents = profile.stereoCents;
-    rt.baseGain    = profile.wetScale;
-    const float glideSec = glideMs * 0.001f;
-    rt.glideCoeff  = glideSec <= 0.0f ? 0.0f
-                                      : std::exp (-((float) numSamples / (float) currentSampleRate) / glideSec);
-    resonatorBank.process (high, numCh, numSamples, rt);
+    // ── Colour mapping core ───────────────────────────────────────────────────
+    const float colorNow = colorSm.getCurrentValue();
+    ColourMappingCore::Settings cset;
+    cset.color01    = juce::jmin (colorNow, 1.0f);
+    cset.colorBoost = juce::jlimit (0.0f, 1.0f, colorNow - 1.0f);
+    cset.amount     = amountSm.getCurrentValue();
+    cset.gate       = gateSm.getCurrentValue();
+    cset.profile    = profile;
 
-    ColourProcessor::Settings cs;
-    cs.colour   = colourNow;
-    cs.drive    = profile.driveBase;
-    cs.width    = profile.widthScale;
-    cs.highEmph = profile.highEmph;
-    colourProcessor.process (high, numCh, numSamples, cs);
+    ColourMappingCore::Energies energies;
+    colourCore.process (tuned, active, numCh, numSamples, cset, energies);
 
-    const float formantSt    = formantSmoothed.getCurrentValue();
-    const float formantAmount = juce::jlimit (0.0f, 1.0f,
-                                              std::abs (formantSt) / 24.0f * 0.5f
-                                                  + colourNow * profile.formantScale * 0.4f);
-    formantTone.update (formantSt, formantAmount);
-    formantTone.process (high, numCh, numSamples);
+    uiInputEnergy.store (energies.input);
+    uiTunedEnergy.store (energies.tuned);
+    uiColoredEnergy.store (energies.colored);
 
-    // ── Combine: amount, transient return, mix, output ─────────────────────────
-    float energy = 0.0f;
+    // ── Pseudo formant / gamma ────────────────────────────────────────────────
+    const float formantSt  = formantSm.getCurrentValue();
+    const float gammaNow   = gammaSm.getCurrentValue();
+    const float formantAmt = juce::jlimit (0.0f, 1.0f,
+                                          (std::abs (formantSt) / 24.0f * 0.6f + gammaNow * 0.6f)
+                                              * (0.5f + 0.5f * profile.formantReact));
+    formantTone.update (formantSt, formantAmt);
+    formantTone.process (tuned, numCh, numSamples);
+
+    // ── Side mute (collapse processed band toward mono) ───────────────────────
+    if (sideMute && numCh >= 2)
+    {
+        for (int s = 0; s < numSamples; ++s)
+        {
+            const float mid = 0.5f * (tuned[0][s] + tuned[1][s]);
+            tuned[0][s] = mid;
+            tuned[1][s] = mid;
+        }
+    }
+
+    // ── Combine: transient restore, mix, output ───────────────────────────────
     for (int s = 0; s < numSamples; ++s)
     {
-        const float amount = amountSmoothed.getNextValue();
-        const float mix    = mixSmoothed.getNextValue();
-        const float outGn  = outputSmoothed.getNextValue();
-        const float tg     = juce::jlimit (0.0f, 1.0f, transientEnv[(size_t) s] * transAmt);
+        const float mix   = mixSm.getNextValue();
+        const float outGn = outputSm.getNextValue();
+        const float tg    = juce::jlimit (0.0f, 1.0f, transientEnv[(size_t) s] * transAmt);
 
         for (int ch = 0; ch < numCh; ++ch)
         {
-            const float dh = dryHigh[ch][s];
-
-            // Effect depth (dry high -> processed high).
-            float effHigh = dh + amount * (high[ch][s] - dh);
-
-            // Transient return: let attacks pass through dry.
-            effHigh = effHigh + tg * (dh - effHigh);
-
-            const float wet = low[ch][s] + effHigh;   // protected sub stays dry
-            const float dryFull = dry[ch][s];
-            float outSample = dryFull + mix * (wet - dryFull);
+            const float act  = active[ch][s];
+            const float proc = tuned[ch][s] + tg * (act - tuned[ch][s]); // attacks pass dry
+            float outSample  = dry[ch][s] + mix * (proc - act);          // out-of-range stays dry
             outSample *= outGn;
-
             buffer.setSample (ch, s, outSample);
-            energy += dryFull * dryFull;
         }
     }
 
@@ -228,7 +224,6 @@ void NSColourMapAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         out[ch] = buffer.getWritePointer (ch);
     limiter.process (out, numCh, numSamples);
 
-    uiInputEnergy.store (std::sqrt (energy / (float) (numSamples * numCh)));
     uiMidiActivity.store (juce::jmax (0.0f, uiMidiActivity.load() - 0.03f));
 }
 
@@ -237,74 +232,17 @@ juce::AudioProcessorEditor* NSColourMapAudioProcessor::createEditor()
     return new NSColourMapAudioProcessorEditor (*this);
 }
 
-void NSColourMapAudioProcessor::storeSnapshot (int index)
-{
-    if (index >= 0 && index < kNumSnapshots)
-        snapshots[(size_t) index] = parameters.copyState();
-}
-
-bool NSColourMapAudioProcessor::recallSnapshot (int index)
-{
-    if (index < 0 || index >= kNumSnapshots || ! snapshots[(size_t) index].isValid())
-        return false;
-
-    parameters.replaceState (snapshots[(size_t) index].createCopy());
-    return true;
-}
-
-bool NSColourMapAudioProcessor::isSnapshotFilled (int index) const
-{
-    return index >= 0 && index < kNumSnapshots && snapshots[(size_t) index].isValid();
-}
-
 void NSColourMapAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    juce::XmlElement root ("NSColourMapState");
-
-    if (auto stateXml = parameters.copyState().createXml())
-        root.addChildElement (stateXml.release());
-
-    for (int i = 0; i < kNumSnapshots; ++i)
-    {
-        if (! snapshots[(size_t) i].isValid())
-            continue;
-        if (auto snapXml = snapshots[(size_t) i].createXml())
-        {
-            auto* slot = root.createNewChildElement ("Snapshot");
-            slot->setAttribute ("index", i);
-            slot->addChildElement (snapXml.release());
-        }
-    }
-
-    copyXmlToBinary (root, destData);
+    if (auto xml = parameters.copyState().createXml())
+        copyXmlToBinary (*xml, destData);
 }
 
 void NSColourMapAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    auto xml = getXmlFromBinary (data, sizeInBytes);
-    if (! xml)
-        return;
-
-    if (xml->hasTagName ("NSColourMapState"))
-    {
-        if (auto* stateXml = xml->getChildByName (parameters.state.getType()))
-            parameters.replaceState (juce::ValueTree::fromXml (*stateXml));
-
-        for (auto& s : snapshots)
-            s = {};
-
-        for (auto* slot : xml->getChildWithTagNameIterator ("Snapshot"))
-        {
-            const int index = slot->getIntAttribute ("index", -1);
-            if (index >= 0 && index < kNumSnapshots)
-                if (auto* snapXml = slot->getFirstChildElement())
-                    snapshots[(size_t) index] = juce::ValueTree::fromXml (*snapXml);
-        }
-    }
-    else if (xml->hasTagName (parameters.state.getType())) // backward compatibility
-    {
-        parameters.replaceState (juce::ValueTree::fromXml (*xml));
-    }
+    if (auto xml = getXmlFromBinary (data, sizeInBytes))
+        if (xml->hasTagName (parameters.state.getType()))
+            parameters.replaceState (juce::ValueTree::fromXml (*xml));
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

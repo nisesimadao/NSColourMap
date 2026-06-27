@@ -62,6 +62,11 @@ public:
     void prepare (double sr, int /*maxBlock*/) noexcept
     {
         sampleRate = (float) (sr > 0.0 ? sr : 44100.0);
+        reset();
+    }
+
+    void reset() noexcept
+    {
         for (auto& v : voices)
             v.reset();
     }

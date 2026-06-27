@@ -18,6 +18,8 @@ enum class Scale
     minorPentatonic,
     majorPentatonic,
     pentatonicBlues,
+    wholeTone,
+    chromatic,
     count
 };
 
@@ -35,6 +37,8 @@ inline const char* getScaleName (Scale scale) noexcept
         case Scale::minorPentatonic: return "Minor Pentatonic";
         case Scale::majorPentatonic: return "Major Pentatonic";
         case Scale::pentatonicBlues: return "Pentatonic Blues";
+        case Scale::wholeTone:       return "Whole Tone";
+        case Scale::chromatic:       return "Chromatic";
         case Scale::count:
         default:                     return "Major";
     }
@@ -74,6 +78,8 @@ inline ScaleNoteSet makeScaleNoteSet (int key, Scale scale) noexcept
     static constexpr std::array<int, 5> minorPentatonic  { 0, 3, 5, 7, 10 };
     static constexpr std::array<int, 5> majorPentatonic  { 0, 2, 4, 7, 9 };
     static constexpr std::array<int, 6> pentatonicBlues  { 0, 3, 5, 6, 7, 10 };
+    static constexpr std::array<int, 6> wholeTone        { 0, 2, 4, 6, 8, 10 };
+    static constexpr std::array<int, 12> chromatic       { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
 
     const int root = ((key % 12) + 12) % 12;
     ScaleNoteSet set;
@@ -96,6 +102,8 @@ inline ScaleNoteSet makeScaleNoteSet (int key, Scale scale) noexcept
         case Scale::minorPentatonic: add (minorPentatonic); break;
         case Scale::majorPentatonic: add (majorPentatonic); break;
         case Scale::pentatonicBlues: add (pentatonicBlues); break;
+        case Scale::wholeTone:       add (wholeTone);       break;
+        case Scale::chromatic:       add (chromatic);       break;
         case Scale::count:
         default:                     add (major);           break;
     }
