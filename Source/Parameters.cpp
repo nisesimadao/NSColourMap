@@ -26,10 +26,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         juce::NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.85f,
         Attr().withLabel ("%").withStringFromValueFunction (percentString)));
 
-    p.push_back (std::make_unique<APF> (juce::ParameterID { melody, 1 }, "Melody",
-        juce::NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.0f,
-        Attr().withLabel ("%").withStringFromValueFunction (percentString)));
-
     p.push_back (std::make_unique<APF> (juce::ParameterID { scaleShift, 1 }, "Scale Shift",
         juce::NormalisableRange<float> { -12.0f, 12.0f, 1.0f }, 0.0f, Attr().withLabel ("st")));
 
@@ -79,6 +75,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
 
     p.push_back (std::make_unique<APB> (juce::ParameterID { multirate, 1 }, "Multirate", false));
     p.push_back (std::make_unique<APC> (juce::ParameterID { uiTab, 1 }, "UI Tab", juce::StringArray { "Main", "About" }, 0));
+
+    // New audio parameters must be appended so existing DAW projects do not
+    // remap saved parameter indices onto the wrong controls.
+    p.push_back (std::make_unique<APF> (juce::ParameterID { melody, 1 }, "Melody",
+        juce::NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.0f,
+        Attr().withLabel ("%").withStringFromValueFunction (percentString)));
 
     return { p.begin(), p.end() };
 }
