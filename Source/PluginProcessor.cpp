@@ -297,6 +297,7 @@ void NSColourMapAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     cset.amount     = amountSm.skip (numSamples);
     cset.gate       = gateSm.skip (numSamples);
     cset.morph      = getValue (parameters, params::morph);
+    cset.sizzle     = getValue (parameters, params::air);
     cset.profile    = profile;
 
     ColourMappingCore::Energies energies;

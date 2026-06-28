@@ -559,6 +559,7 @@ NSColourMapAudioProcessorEditor::NSColourMapAudioProcessorEditor (NSColourMapAud
     configureKnob (gammaKnob, gammaLabel, "Gamma");
     configureKnob (morphKnob, morphLabel, "Morph");
     configureKnob (gateKnob, gateLabel, "Gate");
+    configureKnob (airKnob, airLabel, "Air");
     configureKnob (lowCutKnob, lowCutLabel, "Low Cut");
     configureKnob (highCutKnob, highCutLabel, "High Cut");
 
@@ -573,6 +574,7 @@ NSColourMapAudioProcessorEditor::NSColourMapAudioProcessorEditor (NSColourMapAud
     gammaKnob.setTooltip      (JS::fromUTF8 ("Gamma: フォルマントの山谷を誇張し母音をゆっくり揺らす（有機的な動き）"));
     morphKnob.setTooltip      (JS::fromUTF8 ("Morph: 原音の輪郭/ダイナミクスを処理音に転写（アタック保持・テイル抑制）"));
     gateKnob.setTooltip       (JS::fromUTF8 ("Gate: 共鳴のテイルを締める"));
+    airKnob.setTooltip        (JS::fromUTF8 ("Air: なめらかな高域の粒立ち（シャリシャリ）。刺さらずに空気感・煌めきを足す"));
     lowCutKnob.setTooltip     (JS::fromUTF8 ("Low Cut: この周波数以下は無加工で保護（サブを濁らせない）"));
     highCutKnob.setTooltip    (JS::fromUTF8 ("High Cut: この周波数以上は処理しない"));
     scaleShiftKnob.setTooltip (JS::fromUTF8 ("Scale Shift: グリッド全体を半音単位で移動（オートメーション向き）"));
@@ -611,6 +613,7 @@ NSColourMapAudioProcessorEditor::NSColourMapAudioProcessorEditor (NSColourMapAud
     gammaAtt      = std::make_unique<SliderAttachment> (s, nscm::params::gamma,      gammaKnob);
     morphAtt      = std::make_unique<SliderAttachment> (s, nscm::params::morph,      morphKnob);
     gateAtt       = std::make_unique<SliderAttachment> (s, nscm::params::gate,       gateKnob);
+    airAtt        = std::make_unique<SliderAttachment> (s, nscm::params::air,        airKnob);
     lowCutAtt     = std::make_unique<SliderAttachment> (s, nscm::params::lowCut,     lowCutKnob);
     highCutAtt    = std::make_unique<SliderAttachment> (s, nscm::params::highCut,    highCutKnob);
     scaleShiftAtt = std::make_unique<SliderAttachment> (s, nscm::params::scaleShift, scaleShiftKnob);
@@ -680,9 +683,9 @@ void NSColourMapAudioProcessorEditor::updateMainVisibility()
         l->setVisible (main);
 
     const bool adv = main && showAdvanced;
-    for (auto* s : { &gammaKnob, &morphKnob, &gateKnob, &lowCutKnob, &highCutKnob })
+    for (auto* s : { &gammaKnob, &morphKnob, &gateKnob, &airKnob, &lowCutKnob, &highCutKnob })
         s->setVisible (adv);
-    for (auto* l : { &gammaLabel, &morphLabel, &gateLabel, &lowCutLabel, &highCutLabel })
+    for (auto* l : { &gammaLabel, &morphLabel, &gateLabel, &airLabel, &lowCutLabel, &highCutLabel })
         l->setVisible (adv);
     sideMuteButton.setVisible (adv);
     multirateButton.setVisible (adv);
@@ -836,7 +839,7 @@ void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
         g.fillRoundedRectangle (badge, 5.0f);
         g.setColour (accent);
         g.setFont (sectionFont());
-        g.drawText ("v0.8.2", badge.toNearestInt(), juce::Justification::centred);
+        g.drawText ("v0.8.3", badge.toNearestInt(), juce::Justification::centred);
         area.removeFromTop (34);
 
         g.setColour (panelLight.brighter (0.1f));
@@ -910,11 +913,11 @@ void NSColourMapAudioProcessorEditor::layoutClassic (juce::Rectangle<int> area)
     if (showAdvanced)
     {
         auto adv = area.removeFromBottom (92);
-        const int n = 5;
+        const int n = 6;
         const int w = (adv.getWidth() - 150) / n;
         auto knobs = adv.removeFromLeft (w * n);
-        juce::Slider* ks[] = { &gammaKnob, &morphKnob, &gateKnob, &lowCutKnob, &highCutKnob };
-        juce::Label*  ls[] = { &gammaLabel, &morphLabel, &gateLabel, &lowCutLabel, &highCutLabel };
+        juce::Slider* ks[] = { &gammaKnob, &morphKnob, &gateKnob, &airKnob, &lowCutKnob, &highCutKnob };
+        juce::Label*  ls[] = { &gammaLabel, &morphLabel, &gateLabel, &airLabel, &lowCutLabel, &highCutLabel };
         for (int i = 0; i < n; ++i)
         {
             auto col = knobs.removeFromLeft (w).reduced (3, 0);
@@ -993,11 +996,11 @@ void NSColourMapAudioProcessorEditor::layoutClean (juce::Rectangle<int> area)
     if (showAdvanced)
     {
         auto adv = area.removeFromBottom (92);
-        const int n = 5;
+        const int n = 6;
         const int w = (adv.getWidth() - 150) / n;
         auto knobs = adv.removeFromLeft (w * n);
-        juce::Slider* ks[] = { &gammaKnob, &morphKnob, &gateKnob, &lowCutKnob, &highCutKnob };
-        juce::Label*  ls[] = { &gammaLabel, &morphLabel, &gateLabel, &lowCutLabel, &highCutLabel };
+        juce::Slider* ks[] = { &gammaKnob, &morphKnob, &gateKnob, &airKnob, &lowCutKnob, &highCutKnob };
+        juce::Label*  ls[] = { &gammaLabel, &morphLabel, &gateLabel, &airLabel, &lowCutLabel, &highCutLabel };
         for (int i = 0; i < n; ++i)
         {
             auto col = knobs.removeFromLeft (w).reduced (3, 0);
