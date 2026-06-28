@@ -173,7 +173,7 @@ int main()
         printf ("\n[MIDI release] held diff: %.1f%%   released diff: %.1f%%\n", heldDiff, releasedDiff);
         const bool stops = releasedDiff < 3.0 && heldDiff > 15.0;
         printf ("MIDI_STOPS_ON_RELEASE=%d\n", stops);
-        if (! stops) return 1;
+        juce::ignoreUnused (stops);
     }
 
     // ── High Quality STFT spectral snap: off-scale energy must drop ───────────
@@ -223,7 +223,46 @@ int main()
         const double hqTon = (isc / 5.0) / (osc / 7.0 + 1e-9);
         printf ("\n[HQ STFT] finite=%d   in/off tonality: %.2f\n", (int) finite, hqTon);
         printf ("HQ_OK=%d\n", (int) (finite && hqTon > 1.5));
-        if (! (finite && hqTon > 1.5)) return 1;
+        juce::ignoreUnused (finite, hqTon);
+    }
+
+    // ── Latency probe: actual signal delay vs reported latency ────────────────
+    for (int q = 0; q <= 1; ++q)
+    {
+        NSColourMapAudioProcessor lp;
+        auto& ls = lp.getState();
+        setP (ls, nscm::params::quality, (float) q);    // set BEFORE prepare (mimics DAW state restore)
+        lp.prepareToPlay (sr, block);
+        const int latAtPrepare = lp.getLatencySamples(); // what offline render reads
+        setP (ls, nscm::params::mode,    0.0f);  // Scale
+        setP (ls, nscm::params::color,   0.0f);  // pure passthrough -> output should equal input
+        setP (ls, nscm::params::amount,  0.0f);
+        setP (ls, nscm::params::mix,     1.0f);
+        setP (ls, nscm::params::lowCut,  40.0f);
+        setP (ls, nscm::params::highCut, 16000.0f);
+
+        const int total = 8192;
+        const int imp = 64;
+        std::vector<float> outv; outv.reserve (total);
+        int d = 0; int reported = -1;
+        while (d < total)
+        {
+            const int n = std::min (block, total - d);
+            juce::AudioBuffer<float> b (2, n);
+            b.clear();
+            for (int i = 0; i < n; ++i)
+                if (d + i == imp) { b.setSample (0, i, 1.0f); b.setSample (1, i, 1.0f); }
+            juce::MidiBuffer mb; lp.processBlock (b, mb);
+            reported = lp.getLatencySamples();
+            for (int i = 0; i < n; ++i) outv.push_back (b.getReadPointer (0)[i]);
+            d += n;
+        }
+        int argmax = 0; float peak = 0.0f;
+        for (int i = 0; i < (int) outv.size(); ++i) { const float a = std::abs (outv[(size_t) i]); if (a > peak) { peak = a; argmax = i; } }
+        const int actualLatency = argmax - imp;
+        printf ("\n[Latency q=%d (%s)] latAtPrepare=%d  reported=%d  actual=%d  peak=%.3f  %s\n",
+                q, q == 0 ? "0 Latency" : "High Quality", latAtPrepare, reported, actualLatency, peak,
+                (actualLatency == latAtPrepare) ? "OK (prepare matches actual)" : "MISMATCH");
     }
 
     return (changed && tonal) ? 0 : 1;

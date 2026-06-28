@@ -123,6 +123,15 @@ the recombination aligned; `0 Latency` keeps the oscillator core (0 latency).
 The off-key-rejection is real (measured in/off tonality on an off-scale saw rises
 above the 0-Latency engine).
 
+## Latency reporting (export-correct)
+
+The reported latency must be set in `prepareToPlay` from the current Quality
+(0 Latency → 0, High Quality → STFT fftSize), because hosts query latency once
+after prepare — including for offline render/export. Setting it only from
+`processBlock` left export PDC reading a stale value, causing an audible delay.
+The dry path is delayed to match the STFT internally; an impulse probe confirms
+reported latency == actual latency in both modes (0 and 2048).
+
 ## Spectrum analyzer (UI)
 
 `SpectrumAnalyzer` runs a 2048-pt magnitude FFT on the output (75% overlap) and
