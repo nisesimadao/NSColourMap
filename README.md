@@ -88,6 +88,10 @@ ctest --test-dir build        # 楽典 + カラーコアの可聴性テスト
 
 PITCHMAP::COLORS × Chroma を参考にした Colour Bass 用カラーマッパー（v0.5系）。STFT ピッチクラスマッパーは v2 予定。
 
+## このプロジェクトについて
+
+NSColourMap は **vibe coding（AIとの対話で要件・実装・調整を進めるスタイル）で作られたプロジェクト**です。
+
 ## ライセンス
 
 MIT · by nisesimadao

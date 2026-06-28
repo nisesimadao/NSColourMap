@@ -27,13 +27,14 @@ inline constexpr auto output      = "output";
 inline constexpr auto multirate   = "multirate";
 inline constexpr auto uiTab       = "uiTab";
 
-inline juce::StringArray modeNames()      { return { "Scale", "MIDI", "Hybrid", "UI" }; }
+inline juce::StringArray modeNames()      { return { "Scale", "MIDI", "Hybrid", "UI", "Audio" }; }
 inline juce::StringArray characterNames() { return { "Clean", "Color", "Hyper", "Alien", "Glitch" }; }
 inline juce::StringArray keyNames()       { return { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" }; }
 inline juce::StringArray scaleNames()     { return { "Major", "Natural Minor", "Harmonic Minor", "Dorian", "Phrygian",
                                                      "Lydian", "Mixolydian", "Minor Pentatonic", "Major Pentatonic",
                                                      "Pentatonic Blues", "Whole Tone", "Chromatic" }; }
-inline juce::StringArray qualityNames()   { return { "0 Latency", "High Quality" }; }
+// Quality / latency slider: 0 Latency (oscillator core) -> Low/Mid/High STFT tiers.
+inline juce::StringArray qualityNames()   { return { "0 Latency", "Low", "Mid", "High" }; }
 
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 } // namespace nscm::params

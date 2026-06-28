@@ -86,16 +86,17 @@ private:
     juce::Label      logoLabel;
     juce::ComboBox   presetBox;
     juce::Component  midiIndicator;
-    juce::TextButton qualityButton { "0 Lat" };
+    juce::Slider     qualitySlider;   // 0 Latency .. High (latency/quality)
+    juce::Label      qualityLabel;
     juce::TextButton advancedButton { "ADV" };
     juce::TextButton styleButton { "Clean" };
     juce::TextButton mainTab  { "Main" };
     juce::TextButton aboutTab { "About" };
 
     // Key strip
-    std::array<juce::TextButton, 4> gridModeButtons {
+    std::array<juce::TextButton, 5> gridModeButtons {
         juce::TextButton { "Scale" }, juce::TextButton { "MIDI" },
-        juce::TextButton { "Hybrid" }, juce::TextButton { "UI" } };
+        juce::TextButton { "Hybrid" }, juce::TextButton { "UI" }, juce::TextButton { "Audio" } };
     juce::ComboBox keyBox, scaleBox;
     juce::Slider   scaleShiftKnob;
     juce::Label    scaleShiftLabel;
@@ -119,16 +120,17 @@ private:
     juce::Label  gammaLabel, morphLabel, gateLabel, lowCutLabel, highCutLabel;
     juce::ToggleButton sideMuteButton { "Side Mute" }, multirateButton { "Multirate" };
 
-    int  currentTab = 0;
-    bool showAdvanced = false;
-    int  uiStyle = 0; // 0 = Clean (default), 1 = Classic
+    int   currentTab = 0;
+    bool  showAdvanced = false;
+    int   uiStyle = 0; // 0 = Clean (default), 1 = Classic
+    float glowLevel = 0.0f; // eased COLOR glow, driven by live colour energy
 
     // Clean-layout section rectangles (drawn as labelled panels in paint()).
     juce::Rectangle<int> rSourcePanel, rEnginePanel,
                          rTitleSource, rTitleChar, rTitleColor, rTitleTone;
 
     std::unique_ptr<SliderAttachment>   colorAtt, amountAtt, formantAtt, transientAtt, mixAtt, outputAtt,
-                                        scaleShiftAtt, gammaAtt, morphAtt, gateAtt, lowCutAtt, highCutAtt;
+                                        scaleShiftAtt, gammaAtt, morphAtt, gateAtt, lowCutAtt, highCutAtt, qualityAtt;
     std::unique_ptr<ComboBoxAttachment> keyAtt, scaleAtt;
     std::unique_ptr<ButtonAttachment>   freezeAtt, sideMuteAtt, multirateAtt;
 
