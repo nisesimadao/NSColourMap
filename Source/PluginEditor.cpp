@@ -496,9 +496,14 @@ NSColourMapAudioProcessorEditor::NSColourMapAudioProcessorEditor (NSColourMapAud
     addAndMakeVisible (qualityButton);
 
     advancedButton.setClickingTogglesState (false);
-    advancedButton.setTooltip ("Show advanced controls");
+    advancedButton.setTooltip (juce::String::fromUTF8 ("詳細パラメータ (Gamma / Morph / Gate / Low・High Cut など) の表示切替"));
     advancedButton.onClick = [this] { showAdvanced = ! showAdvanced; advancedButton.setToggleState (showAdvanced, juce::dontSendNotification); updateMainVisibility(); resized(); };
     addAndMakeVisible (advancedButton);
+
+    styleButton.setClickingTogglesState (false);
+    styleButton.setTooltip (juce::String::fromUTF8 ("UIスタイル切替: Clean(分かりやすい) / Classic(従来)"));
+    styleButton.onClick = [this] { setUiStyle (uiStyle == 0 ? 1 : 0); };
+    addAndMakeVisible (styleButton);
 
     configureTab (mainTab, 0);
     configureTab (aboutTab, 1);
@@ -531,6 +536,29 @@ NSColourMapAudioProcessorEditor::NSColourMapAudioProcessorEditor (NSColourMapAud
     configureKnob (gateKnob, gateLabel, "Gate");
     configureKnob (lowCutKnob, lowCutLabel, "Low Cut");
     configureKnob (highCutKnob, highCutLabel, "High Cut");
+
+    // Japanese tooltips (分かりやすさ)
+    using JS = juce::String;
+    colorKnob.setTooltip     (JS::fromUTF8 ("COLOR: 色の量。0-100%でドライ→キーに染める、100-200%で共鳴と煌びやかなテイルを追加。まずこれを回す"));
+    amountKnob.setTooltip     (JS::fromUTF8 ("Amount: グリッド(キー)へ寄せる強さ"));
+    formantKnob.setTooltip    (JS::fromUTF8 ("Formant: 母音/サイズ感（−で太く低く、＋で細く高く）"));
+    transientKnob.setTooltip  (JS::fromUTF8 ("Transient: アタックをドライのまま通す量"));
+    mixKnob.setTooltip        (JS::fromUTF8 ("Mix: 原音と処理音のバランス"));
+    outputKnob.setTooltip     (JS::fromUTF8 ("Output: 出力音量"));
+    gammaKnob.setTooltip      (JS::fromUTF8 ("Gamma: フォルマントの山谷を誇張し母音をゆっくり揺らす（有機的な動き）"));
+    morphKnob.setTooltip      (JS::fromUTF8 ("Morph: 原音の輪郭/ダイナミクスを処理音に転写（アタック保持・テイル抑制）"));
+    gateKnob.setTooltip       (JS::fromUTF8 ("Gate: 共鳴のテイルを締める"));
+    lowCutKnob.setTooltip     (JS::fromUTF8 ("Low Cut: この周波数以下は無加工で保護（サブを濁らせない）"));
+    highCutKnob.setTooltip    (JS::fromUTF8 ("High Cut: この周波数以上は処理しない"));
+    scaleShiftKnob.setTooltip (JS::fromUTF8 ("Scale Shift: グリッド全体を半音単位で移動（オートメーション向き）"));
+    keyBox.setTooltip         (JS::fromUTF8 ("Key: 曲のキー（ルート音）"));
+    scaleBox.setTooltip       (JS::fromUTF8 ("Scale: スケール。Colour Bassは Minor Pentatonic / Pentatonic Blues が定番"));
+    freezeButton.setTooltip   (JS::fromUTF8 ("Freeze: Offでノートを離すと止まる / Onで最後のコードを保持"));
+    gridModeButtons[0].setTooltip (JS::fromUTF8 ("Scale: Key/Scaleでターゲット音を決める（MIDI不要）"));
+    gridModeButtons[1].setTooltip (JS::fromUTF8 ("MIDI: 送ったMIDIコードでターゲット音を決める"));
+    gridModeButtons[2].setTooltip (JS::fromUTF8 ("Hybrid: スケールを土台にMIDIで弾いた音を強調"));
+    gridModeButtons[3].setTooltip (JS::fromUTF8 ("UI: 下の鍵盤をクリックして音を選ぶ"));
+
     addAndMakeVisible (sideMuteButton);
     addAndMakeVisible (multirateButton);
 
@@ -565,6 +593,9 @@ NSColourMapAudioProcessorEditor::NSColourMapAudioProcessorEditor (NSColourMapAud
     freezeAtt     = std::make_unique<ButtonAttachment>   (s, nscm::params::midiFreeze, freezeButton);
     sideMuteAtt   = std::make_unique<ButtonAttachment>   (s, nscm::params::sideMute, sideMuteButton);
     multirateAtt  = std::make_unique<ButtonAttachment>   (s, nscm::params::multirate, multirateButton);
+
+    uiStyle = juce::jlimit (0, 1, (int) s.state.getProperty ("uiStyle", 0));
+    styleButton.setButtonText (uiStyle == 0 ? "Clean" : "Classic");
 
     currentTab = choiceIndex (s, nscm::params::uiTab);
     setCurrentTab (currentTab);
@@ -694,6 +725,32 @@ void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
     g.setColour (juce::Colours::white.withAlpha (0.18f));
     g.fillEllipse (ib.reduced (3.0f).translated (0.0f, -1.0f));
 
+    // Clean-mode section panels + titles
+    if (currentTab == 0 && uiStyle == 0)
+    {
+        auto drawPanel = [&] (juce::Rectangle<int> r)
+        {
+            if (r.isEmpty()) return;
+            g.setColour (juce::Colour { 0xff1d2024u });
+            g.fillRoundedRectangle (r.toFloat(), 8.0f);
+            g.setColour (juce::Colour { 0xff2c323a });
+            g.drawRoundedRectangle (r.toFloat(), 8.0f, 1.0f);
+        };
+        auto drawTitle = [&] (juce::Rectangle<int> r, const char* t, juce::Justification j)
+        {
+            if (r.isEmpty()) return;
+            g.setColour (accent.withAlpha (0.85f));
+            g.setFont (juce::Font (juce::FontOptions (10.0f).withStyle ("Bold")));
+            g.drawText (t, r, j);
+        };
+        drawPanel (rSourcePanel);
+        drawPanel (rEnginePanel);
+        drawTitle (rTitleSource, "SOURCE",    juce::Justification::centredLeft);
+        drawTitle (rTitleChar,   "CHARACTER", juce::Justification::centredLeft);
+        drawTitle (rTitleColor,  "COLOR",     juce::Justification::centred);
+        drawTitle (rTitleTone,   "TONE",      juce::Justification::centredLeft);
+    }
+
     if (currentTab == 1)
     {
         auto area = getLocalBounds();
@@ -711,7 +768,7 @@ void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
         g.fillRoundedRectangle (badge, 5.0f);
         g.setColour (accent);
         g.setFont (sectionFont());
-        g.drawText ("v0.6.0", badge.toNearestInt(), juce::Justification::centred);
+        g.drawText ("v0.7.0", badge.toNearestInt(), juce::Justification::centred);
         area.removeFromTop (34);
 
         g.setColour (panelLight.brighter (0.1f));
@@ -736,20 +793,28 @@ void NSColourMapAudioProcessorEditor::resized()
 {
     auto area   = getLocalBounds();
     auto header = area.removeFromTop (48).reduced (14, 6);
-    logoLabel.setBounds (header.removeFromLeft (150));
-    aboutTab.setBounds (header.removeFromRight (66));
-    mainTab.setBounds (header.removeFromRight (62).reduced (4, 0));
-    advancedButton.setBounds (header.removeFromRight (54).reduced (4, 4));
-    qualityButton.setBounds (header.removeFromRight (74).reduced (4, 4));
-    const auto led = header.removeFromRight (20);
+    logoLabel.setBounds (header.removeFromLeft (138));
+    aboutTab.setBounds (header.removeFromRight (56));
+    mainTab.setBounds (header.removeFromRight (52).reduced (3, 0));
+    styleButton.setBounds (header.removeFromRight (62).reduced (3, 4));
+    advancedButton.setBounds (header.removeFromRight (46).reduced (3, 4));
+    qualityButton.setBounds (header.removeFromRight (66).reduced (3, 4));
+    const auto led = header.removeFromRight (18);
     midiIndicator.setBounds (led.getCentreX() - 6, led.getCentreY() - 6, 12, 12);
     header.removeFromLeft (6);
-    presetBox.setBounds (header.removeFromLeft (juce::jmin (190, header.getWidth())).reduced (0, 8));
+    presetBox.setBounds (header.removeFromLeft (juce::jmin (180, header.getWidth())).reduced (0, 8));
 
     if (currentTab != 0)
         return;
 
     area.reduce (14, 12);
+    if (uiStyle == 0) layoutClean (area);
+    else              layoutClassic (area);
+}
+
+void NSColourMapAudioProcessorEditor::layoutClassic (juce::Rectangle<int> area)
+{
+    rSourcePanel = rEnginePanel = {}; // not used in classic
 
     // Key strip
     auto keyStrip = area.removeFromTop (30);
@@ -827,4 +892,114 @@ void NSColourMapAudioProcessorEditor::resized()
     area.removeFromBottom (8);
 
     visualizer.setBounds (area);
+}
+
+void NSColourMapAudioProcessorEditor::layoutClean (juce::Rectangle<int> area)
+{
+    // ── SOURCE panel (grid mode + key/scale/shift/freeze) ─────────────────────
+    rSourcePanel = area.removeFromTop (58);
+    {
+        auto inner = rSourcePanel.reduced (12, 8);
+        rTitleSource = inner.removeFromTop (14);
+        inner.removeFromTop (2);
+        const int gmW = juce::jmin (62, inner.getWidth() / 7);
+        for (auto& b : gridModeButtons)
+            b.setBounds (inner.removeFromLeft (gmW).reduced (2, 2));
+        inner.removeFromLeft (10);
+        freezeButton.setBounds (inner.removeFromRight (90).reduced (2, 3));
+        inner.removeFromRight (8);
+        auto shiftCol = inner.removeFromRight (50);
+        scaleShiftLabel.setBounds (shiftCol.removeFromTop (11));
+        scaleShiftKnob.setBounds (shiftCol);
+        inner.removeFromRight (8);
+        scaleBox.setBounds (inner.removeFromRight (juce::jmin (150, inner.getWidth() * 2 / 3)).reduced (2, 3));
+        keyBox.setBounds (inner.removeFromRight (juce::jmin (64, inner.getWidth())).reduced (2, 3));
+    }
+    area.removeFromTop (10);
+
+    // ── Advanced drawer (optional, bottom) ────────────────────────────────────
+    if (showAdvanced)
+    {
+        auto adv = area.removeFromBottom (92);
+        const int n = 5;
+        const int w = (adv.getWidth() - 150) / n;
+        auto knobs = adv.removeFromLeft (w * n);
+        juce::Slider* ks[] = { &gammaKnob, &morphKnob, &gateKnob, &lowCutKnob, &highCutKnob };
+        juce::Label*  ls[] = { &gammaLabel, &morphLabel, &gateLabel, &lowCutLabel, &highCutLabel };
+        for (int i = 0; i < n; ++i)
+        {
+            auto col = knobs.removeFromLeft (w).reduced (3, 0);
+            ls[i]->setBounds (col.removeFromTop (15));
+            ks[i]->setBounds (col);
+        }
+        adv.removeFromLeft (8);
+        auto toggles = adv.reduced (2, 18);
+        sideMuteButton.setBounds (toggles.removeFromTop (26));
+        toggles.removeFromTop (4);
+        multirateButton.setBounds (toggles.removeFromTop (26));
+        area.removeFromBottom (8);
+    }
+
+    // ── Engine zone: CHARACTER | COLOR (hero) | TONE ──────────────────────────
+    rEnginePanel = area.removeFromBottom (188);
+    {
+        auto inner = rEnginePanel.reduced (12, 10);
+
+        // Left: CHARACTER (vertical list)
+        auto charCol = inner.removeFromLeft (140);
+        rTitleChar = charCol.removeFromTop (15);
+        charCol.removeFromTop (2);
+        const int bh = juce::jmin (28, charCol.getHeight() / (int) characterButtons.size());
+        for (auto& b : characterButtons)
+            b.setBounds (charCol.removeFromTop (bh).reduced (1, 2));
+
+        inner.removeFromLeft (12);
+
+        // Center: hero COLOR
+        auto colorCol = inner.removeFromLeft (juce::jlimit (150, 200, inner.getWidth() * 2 / 5));
+        rTitleColor = colorCol.removeFromTop (15);
+        colorKnob.setBounds (colorCol.reduced (4, 2));
+        colorLabel.setBounds (0, 0, 0, 0); // title drawn by panel instead
+
+        inner.removeFromLeft (12);
+
+        // Right: TONE — Amount/Formant/Transient (row 1), Mix/Output (row 2)
+        rTitleTone = inner.removeFromTop (15);
+        inner.removeFromTop (2);
+        auto row1 = inner.removeFromTop (inner.getHeight() / 2);
+        auto row2 = inner;
+        juce::Slider* r1k[] = { &amountKnob, &formantKnob, &transientKnob };
+        juce::Label*  r1l[] = { &amountLabel, &formantLabel, &transientLabel };
+        juce::Slider* r2k[] = { &mixKnob, &outputKnob };
+        juce::Label*  r2l[] = { &mixLabel, &outputLabel };
+        const int w1 = row1.getWidth() / 3;
+        for (int i = 0; i < 3; ++i)
+        {
+            auto col = row1.removeFromLeft (i == 2 ? row1.getWidth() : w1).reduced (3, 1);
+            r1l[i]->setBounds (col.removeFromTop (13));
+            r1k[i]->setBounds (col);
+        }
+        const int w2 = row2.getWidth() / 3;
+        for (int i = 0; i < 2; ++i)
+        {
+            auto col = row2.removeFromLeft (w2).reduced (3, 1);
+            r2l[i]->setBounds (col.removeFromTop (13));
+            r2k[i]->setBounds (col);
+        }
+    }
+    area.removeFromBottom (10);
+
+    // ── Keyboard + Visualizer ─────────────────────────────────────────────────
+    keyboard.setBounds (area.removeFromBottom (56));
+    area.removeFromBottom (8);
+    visualizer.setBounds (area);
+}
+
+void NSColourMapAudioProcessorEditor::setUiStyle (int style)
+{
+    uiStyle = juce::jlimit (0, 1, style);
+    audioProcessor.getState().state.setProperty ("uiStyle", uiStyle, nullptr);
+    styleButton.setButtonText (uiStyle == 0 ? "Clean" : "Classic");
+    resized();
+    repaint();
 }
