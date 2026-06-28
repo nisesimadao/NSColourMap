@@ -486,14 +486,19 @@ NSColourMapAudioProcessorEditor::NSColourMapAudioProcessorEditor (NSColourMapAud
     midiIndicator.setInterceptsMouseClicks (false, false);
     addAndMakeVisible (midiIndicator);
 
-    qualityButton.setClickingTogglesState (false);
-    qualityButton.setTooltip ("Quality: 0 Latency / High Quality");
-    qualityButton.onClick = [this]
-    {
-        const int q = choiceIndex (audioProcessor.getState(), nscm::params::quality);
-        setChoice (audioProcessor.getState(), nscm::params::quality, q == 0 ? 1 : 0);
-    };
-    addAndMakeVisible (qualityButton);
+    qualityLabel.setText ("Quality", juce::dontSendNotification);
+    qualityLabel.setFont (juce::Font (juce::FontOptions (9.0f)));
+    qualityLabel.setColour (juce::Label::textColourId, mutedText);
+    qualityLabel.setJustificationType (juce::Justification::centred);
+    addAndMakeVisible (qualityLabel);
+
+    qualitySlider.setSliderStyle (juce::Slider::LinearHorizontal);
+    qualitySlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 54, 18);
+    qualitySlider.setColour (juce::Slider::textBoxTextColourId, text);
+    qualitySlider.setColour (juce::Slider::textBoxBackgroundColourId, juce::Colour { 0x00000000u });
+    qualitySlider.setColour (juce::Slider::textBoxOutlineColourId, juce::Colour { 0x00000000u });
+    qualitySlider.setTooltip (juce::String::fromUTF8 ("Quality: 0 Latency(遅延ゼロ・プレビュー向き) → Low/Mid/High(STFTで高音質・レイテンシ増)。書き出しはどれでもPDC補正で同期"));
+    addAndMakeVisible (qualitySlider);
 
     advancedButton.setClickingTogglesState (false);
     advancedButton.setTooltip (juce::String::fromUTF8 ("詳細パラメータ (Gamma / Morph / Gate / Low・High Cut など) の表示切替"));
@@ -558,6 +563,7 @@ NSColourMapAudioProcessorEditor::NSColourMapAudioProcessorEditor (NSColourMapAud
     gridModeButtons[1].setTooltip (JS::fromUTF8 ("MIDI: 送ったMIDIコードでターゲット音を決める"));
     gridModeButtons[2].setTooltip (JS::fromUTF8 ("Hybrid: スケールを土台にMIDIで弾いた音を強調"));
     gridModeButtons[3].setTooltip (JS::fromUTF8 ("UI: 下の鍵盤をクリックして音を選ぶ"));
+    gridModeButtons[4].setTooltip (JS::fromUTF8 ("Audio: 入力音声から音名を検出してターゲットにする（MIDI不要）"));
 
     addAndMakeVisible (sideMuteButton);
     addAndMakeVisible (multirateButton);
@@ -588,6 +594,7 @@ NSColourMapAudioProcessorEditor::NSColourMapAudioProcessorEditor (NSColourMapAud
     lowCutAtt     = std::make_unique<SliderAttachment> (s, nscm::params::lowCut,     lowCutKnob);
     highCutAtt    = std::make_unique<SliderAttachment> (s, nscm::params::highCut,    highCutKnob);
     scaleShiftAtt = std::make_unique<SliderAttachment> (s, nscm::params::scaleShift, scaleShiftKnob);
+    qualityAtt    = std::make_unique<SliderAttachment> (s, nscm::params::quality,    qualitySlider);
     keyAtt        = std::make_unique<ComboBoxAttachment> (s, nscm::params::key,      keyBox);
     scaleAtt      = std::make_unique<ComboBoxAttachment> (s, nscm::params::scale,    scaleBox);
     freezeAtt     = std::make_unique<ButtonAttachment>   (s, nscm::params::midiFreeze, freezeButton);
@@ -599,7 +606,7 @@ NSColourMapAudioProcessorEditor::NSColourMapAudioProcessorEditor (NSColourMapAud
 
     currentTab = choiceIndex (s, nscm::params::uiTab);
     setCurrentTab (currentTab);
-    startTimerHz (20);
+    startTimerHz (30);
 }
 
 NSColourMapAudioProcessorEditor::~NSColourMapAudioProcessorEditor()
@@ -688,9 +695,18 @@ void NSColourMapAudioProcessorEditor::timerCallback()
     syncRadios();
     repaint (midiIndicator.getBounds().expanded (8));
 
-    const int q = choiceIndex (audioProcessor.getState(), nscm::params::quality);
-    qualityButton.setButtonText (nscm::params::qualityNames()[q]);
-    qualityButton.setToggleState (q == 1, juce::dontSendNotification);
+    // Ease the COLOR glow toward the live colour energy (fast attack, slow release).
+    const float target = juce::jlimit (0.0f, 1.0f,
+                         (audioProcessor.getColoredEnergy() * 6.0f + audioProcessor.getTunedEnergy() * 3.0f));
+    const float rate = target > glowLevel ? 0.5f : 0.12f;
+    const float newGlow = glowLevel + rate * (target - glowLevel);
+    if (std::abs (newGlow - glowLevel) > 0.002f)
+    {
+        glowLevel = newGlow;
+        if (currentTab == 0 && uiStyle == 0)
+            repaint (colorKnob.getBounds().expanded (26));
+    }
+
     advancedButton.setToggleState (showAdvanced, juce::dontSendNotification);
 }
 
@@ -745,6 +761,20 @@ void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
         };
         drawPanel (rSourcePanel);
         drawPanel (rEnginePanel);
+
+        // Glow behind the hero COLOR knob — driven by the actual colour energy
+        // being generated (meaningful, eased), not a decorative pulse.
+        if (! colorKnob.getBounds().isEmpty() && glowLevel > 0.01f)
+        {
+            const auto kb = colorKnob.getBounds().toFloat();
+            const float r = kb.getWidth() * (0.52f + 0.10f * glowLevel);
+            const auto c = kb.getCentre();
+            juce::ColourGradient grad (accent.withAlpha (0.30f * glowLevel), c.x, c.y,
+                                       accent.withAlpha (0.0f), c.x, c.y - r, true);
+            g.setGradientFill (grad);
+            g.fillEllipse (juce::Rectangle<float> (r * 2.0f, r * 2.0f).withCentre (c));
+        }
+
         drawTitle (rTitleSource, "SOURCE",    juce::Justification::centredLeft);
         drawTitle (rTitleChar,   "CHARACTER", juce::Justification::centredLeft);
         drawTitle (rTitleColor,  "COLOR",     juce::Justification::centred);
@@ -768,7 +798,7 @@ void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
         g.fillRoundedRectangle (badge, 5.0f);
         g.setColour (accent);
         g.setFont (sectionFont());
-        g.drawText ("v0.7.1", badge.toNearestInt(), juce::Justification::centred);
+        g.drawText ("v0.8.0", badge.toNearestInt(), juce::Justification::centred);
         area.removeFromTop (34);
 
         g.setColour (panelLight.brighter (0.1f));
@@ -798,7 +828,11 @@ void NSColourMapAudioProcessorEditor::resized()
     mainTab.setBounds (header.removeFromRight (52).reduced (3, 0));
     styleButton.setBounds (header.removeFromRight (62).reduced (3, 4));
     advancedButton.setBounds (header.removeFromRight (46).reduced (3, 4));
-    qualityButton.setBounds (header.removeFromRight (66).reduced (3, 4));
+    {
+        auto qz = header.removeFromRight (132).reduced (3, 4);
+        qualityLabel.setBounds (qz.removeFromLeft (38));
+        qualitySlider.setBounds (qz);
+    }
     const auto led = header.removeFromRight (18);
     midiIndicator.setBounds (led.getCentreX() - 6, led.getCentreY() - 6, 12, 12);
     header.removeFromLeft (6);

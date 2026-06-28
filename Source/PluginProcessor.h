@@ -16,6 +16,7 @@
 #include "dsp/SafetyLimiter.h"
 #include "dsp/SpectralMapper.h"
 #include "dsp/SpectrumAnalyzer.h"
+#include "dsp/ChromaDetector.h"
 #include <juce_dsp/juce_dsp.h>
 
 class NSColourMapAudioProcessor final : public juce::AudioProcessor
@@ -87,8 +88,9 @@ private:
     nscm::ColourMappingCore colourCore;
     nscm::PseudoFormantTone formantTone;
     nscm::SafetyLimiter     limiter;
-    nscm::SpectralMapper    spectral;
+    std::array<nscm::SpectralMapper, 3> spectrals; // STFT tiers: 512 / 1024 / 2048
     nscm::SpectrumAnalyzer  analyzer;
+    nscm::ChromaDetector    chroma;     // Audio grid mode: detect notes from input
     nscm::TargetNoteList    targets;
 
     juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::None> dryDelay { 1 << 13 };

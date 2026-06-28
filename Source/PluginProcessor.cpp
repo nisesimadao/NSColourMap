@@ -32,7 +32,7 @@ NSColourMapAudioProcessor::NSColourMapAudioProcessor()
 
 int NSColourMapAudioProcessor::qualityToMaxVoices (int quality) const noexcept
 {
-    return quality == 1 ? 28 : 20; // High Quality : 0 Latency
+    return quality >= 1 ? 28 : 20; // STFT tiers : 0 Latency
 }
 
 void NSColourMapAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
@@ -46,8 +46,10 @@ void NSColourMapAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
     colourCore.prepare (currentSampleRate);
     formantTone.prepare (currentSampleRate);
     limiter.prepare (currentSampleRate);
-    spectral.prepare (currentSampleRate, 11, numCh);   // 2048-pt STFT (HQ engine)
+    for (int i = 0; i < 3; ++i)
+        spectrals[(size_t) i].prepare (currentSampleRate, 9 + i, numCh); // 512 / 1024 / 2048-pt STFT tiers
     analyzer.prepare (currentSampleRate, 11);          // EQ-style spectrum display
+    chroma.prepare (currentSampleRate, 11);            // Audio-mode note detection
     chordState.reset();
 
     juce::dsp::ProcessSpec spec;
@@ -55,7 +57,7 @@ void NSColourMapAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
     spec.maximumBlockSize = (juce::uint32) block;
     spec.numChannels = (juce::uint32) (numCh * 2); // 0..nc-1 = dry, nc.. = original active
     dryDelay.prepare (spec);
-    dryDelay.setMaximumDelayInSamples (spectral.getLatency() + 16);
+    dryDelay.setMaximumDelayInSamples (spectrals[2].getLatency() + 16);
     dryDelay.reset();
 
     dryBuf.setSize (numCh, block, false, false, true);
@@ -84,7 +86,7 @@ void NSColourMapAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
     // render / PDC reads the right value (it queries latency after prepareToPlay,
     // before the first processBlock). 0 Latency = 0; High Quality = STFT fftSize.
     const int q = (int) getChoice (parameters, params::quality, 0);
-    reportedLatency = (q == 1) ? spectral.getLatency() : 0;
+    reportedLatency = q >= 1 ? spectrals[(size_t) juce::jlimit (0, 2, q - 1)].getLatency() : 0;
     dryDelay.setDelay ((float) reportedLatency);
     setLatencySamples (reportedLatency);
 }
@@ -141,10 +143,11 @@ void NSColourMapAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     const float transAmt  = juce::jlimit (0.0f, 1.5f, getValue (parameters, params::transient) + profile.transientBias);
     const bool  sideMute  = getValue (parameters, params::sideMute) > 0.5f;
 
-    // High Quality runs the STFT spectral snap (adds fftSize latency); 0 Latency
-    // keeps the oscillator core. Update reported latency + dry-path delay on change.
-    const bool engineHQ = (qualityIx == 1);
-    const int  wantLatency = engineHQ ? spectral.getLatency() : 0;
+    // Quality slider: tier 0 = 0 Latency (oscillator core); tiers 1..3 = STFT snap
+    // at 512/1024/2048 (more quality + more latency). Update reported latency on change.
+    const bool engineHQ   = (qualityIx >= 1);
+    const int  tierIx     = juce::jlimit (0, 2, qualityIx - 1);
+    const int  wantLatency = engineHQ ? spectrals[(size_t) tierIx].getLatency() : 0;
     if (wantLatency != reportedLatency)
     {
         reportedLatency = wantLatency;
@@ -182,6 +185,14 @@ void NSColourMapAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     {
         const auto cm = (juce::uint16) uiCustomMask.load();
         mask = cm != 0 ? cm : scaleMask;                       // fall back to scale until notes are picked
+    }
+    else if (modeIdx == 4)                                      // Audio: notes detected from the input
+    {
+        const float* inp[2];
+        for (int ch = 0; ch < numCh; ++ch) inp[ch] = buffer.getReadPointer (ch);
+        chroma.push (inp, numCh, numSamples);
+        const auto cm = chroma.getMask();
+        mask = cm != 0 ? cm : scaleMask;                       // fall back to scale when input is silent
     }
     // Scale (0) uses the scale mask.
 
@@ -251,10 +262,11 @@ void NSColourMapAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
 
     if (engineHQ)
     {
-        spectral.setGrid ((juce::uint16) mask);
-        spectral.setStrength (juce::jlimit (0.3f, 1.0f,
-                              0.3f + 0.7f * amountSm.getCurrentValue() * juce::jmin (colorSm.getCurrentValue(), 1.0f)));
-        spectral.process (snap, numCh, numSamples);            // snapped + delayed by fftSize
+        auto& sp = spectrals[(size_t) tierIx];
+        sp.setGrid ((juce::uint16) mask);
+        sp.setStrength (juce::jlimit (0.3f, 1.0f,
+                        0.3f + 0.7f * amountSm.getCurrentValue() * juce::jmin (colorSm.getCurrentValue(), 1.0f)));
+        sp.process (snap, numCh, numSamples);                  // snapped + delayed by fftSize
 
         // Delay dry and the ORIGINAL active by the same fftSize so recombination aligns.
         for (int ch = 0; ch < numCh; ++ch)
