@@ -522,7 +522,7 @@ NSColourMapAudioProcessorEditor::NSColourMapAudioProcessorEditor (NSColourMapAud
 
     advancedButton.setClickingTogglesState (false);
     advancedButton.setTooltip (juce::String::fromUTF8 ("詳細パラメータ (Gamma / Morph / Gate / Low・High Cut など) の表示切替"));
-    advancedButton.onClick = [this] { showAdvanced = ! showAdvanced; advancedButton.setToggleState (showAdvanced, juce::dontSendNotification); updateMainVisibility(); resized(); };
+    advancedButton.onClick = [this] { showAdvanced = ! showAdvanced; advancedButton.setToggleState (showAdvanced, juce::dontSendNotification); updateMainVisibility(); resized(); repaint(); };
     addAndMakeVisible (advancedButton);
 
     styleButton.setClickingTogglesState (false);
@@ -839,7 +839,7 @@ void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
         g.fillRoundedRectangle (badge, 5.0f);
         g.setColour (accent);
         g.setFont (sectionFont());
-        g.drawText ("v0.8.3", badge.toNearestInt(), juce::Justification::centred);
+        g.drawText ("v0.8.4", badge.toNearestInt(), juce::Justification::centred);
         area.removeFromTop (34);
 
         g.setColour (panelLight.brighter (0.1f));
