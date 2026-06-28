@@ -52,6 +52,33 @@ private:
     int lastRoot = -1;
 };
 
+// Buttons that hold eased animation state for select/hover transitions.
+struct AnimatedButton final : public juce::TextButton
+{
+    using juce::TextButton::TextButton;
+    float sel = 0.0f, hover = 0.0f;
+};
+struct AnimatedToggle final : public juce::ToggleButton
+{
+    using juce::ToggleButton::ToggleButton;
+    float sel = 0.0f, hover = 0.0f;
+};
+
+// Advances a button's sel/hover toward its target with easing; returns true if it
+// changed enough to need a repaint.
+template <typename B>
+inline bool stepButtonAnim (B& b)
+{
+    const float ts = b.getToggleState() ? 1.0f : 0.0f;
+    const float th = b.isOver() ? 1.0f : 0.0f;
+    const float ns = b.sel   + (ts > b.sel   ? 0.40f : 0.18f) * (ts - b.sel);
+    const float nh = b.hover + (th > b.hover ? 0.45f : 0.22f) * (th - b.hover);
+    bool changed = false;
+    if (std::abs (ns - b.sel)   > 0.004f) { b.sel = ns;     changed = true; } else b.sel = ts;
+    if (std::abs (nh - b.hover) > 0.004f) { b.hover = nh;   changed = true; } else b.hover = th;
+    return changed;
+}
+
 // ── Editor ────────────────────────────────────────────────────────────────────
 class NSColourMapAudioProcessorEditor final : public juce::AudioProcessorEditor, private juce::Timer
 {
@@ -88,19 +115,19 @@ private:
     juce::Component  midiIndicator;
     juce::Slider     qualitySlider;   // 0 Latency .. High (latency/quality)
     juce::Label      qualityLabel;
-    juce::TextButton advancedButton { "ADV" };
-    juce::TextButton styleButton { "Clean" };
-    juce::TextButton mainTab  { "Main" };
-    juce::TextButton aboutTab { "About" };
+    AnimatedButton   advancedButton { "ADV" };
+    AnimatedButton   styleButton { "Clean" };
+    AnimatedButton   mainTab  { "Main" };
+    AnimatedButton   aboutTab { "About" };
 
     // Key strip
-    std::array<juce::TextButton, 5> gridModeButtons {
-        juce::TextButton { "Scale" }, juce::TextButton { "MIDI" },
-        juce::TextButton { "Hybrid" }, juce::TextButton { "UI" }, juce::TextButton { "Audio" } };
+    std::array<AnimatedButton, 5> gridModeButtons {
+        AnimatedButton { "Scale" }, AnimatedButton { "MIDI" },
+        AnimatedButton { "Hybrid" }, AnimatedButton { "UI" }, AnimatedButton { "Audio" } };
     juce::ComboBox keyBox, scaleBox;
     juce::Slider   scaleShiftKnob;
     juce::Label    scaleShiftLabel;
-    juce::ToggleButton freezeButton { "Freeze" };
+    AnimatedToggle freezeButton { "Freeze" };
 
     // Views
     VisualizerView visualizer;
@@ -111,14 +138,14 @@ private:
     juce::Label  colorLabel, amountLabel, formantLabel, transientLabel, mixLabel, outputLabel;
 
     // Character row
-    std::array<juce::TextButton, 5> characterButtons {
-        juce::TextButton { "Clean" }, juce::TextButton { "Color" }, juce::TextButton { "Hyper" },
-        juce::TextButton { "Alien" }, juce::TextButton { "Glitch" } };
+    std::array<AnimatedButton, 5> characterButtons {
+        AnimatedButton { "Clean" }, AnimatedButton { "Color" }, AnimatedButton { "Hyper" },
+        AnimatedButton { "Alien" }, AnimatedButton { "Glitch" } };
 
     // Advanced drawer
     juce::Slider gammaKnob, morphKnob, gateKnob, lowCutKnob, highCutKnob;
     juce::Label  gammaLabel, morphLabel, gateLabel, lowCutLabel, highCutLabel;
-    juce::ToggleButton sideMuteButton { "Side Mute" }, multirateButton { "Multirate" };
+    AnimatedToggle sideMuteButton { "Side Mute" }, multirateButton { "Multirate" };
 
     int   currentTab = 0;
     bool  showAdvanced = false;
