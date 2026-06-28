@@ -134,8 +134,8 @@ private:
     KeyboardView   keyboard;
 
     // Big COLOR + main knobs
-    juce::Slider colorKnob, amountKnob, formantKnob, transientKnob, mixKnob, outputKnob;
-    juce::Label  colorLabel, amountLabel, formantLabel, transientLabel, mixLabel, outputLabel;
+    juce::Slider colorKnob, amountKnob, melodyKnob, formantKnob, transientKnob, mixKnob, outputKnob;
+    juce::Label  colorLabel, amountLabel, melodyLabel, formantLabel, transientLabel, mixLabel, outputLabel;
 
     // Character row
     std::array<AnimatedButton, 5> characterButtons {
@@ -157,7 +157,8 @@ private:
                          rTitleSource, rTitleChar, rTitleColor, rTitleTone;
 
     std::unique_ptr<SliderAttachment>   colorAtt, amountAtt, formantAtt, transientAtt, mixAtt, outputAtt,
-                                        scaleShiftAtt, gammaAtt, morphAtt, gateAtt, airAtt, lowCutAtt, highCutAtt, qualityAtt;
+                                        melodyAtt, scaleShiftAtt, gammaAtt, morphAtt, gateAtt, airAtt,
+                                        lowCutAtt, highCutAtt, qualityAtt;
     std::unique_ptr<ComboBoxAttachment> keyAtt, scaleAtt;
     std::unique_ptr<ButtonAttachment>   freezeAtt, sideMuteAtt, multirateAtt;
 

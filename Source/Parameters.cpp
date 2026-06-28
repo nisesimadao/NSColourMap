@@ -26,6 +26,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         juce::NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.85f,
         Attr().withLabel ("%").withStringFromValueFunction (percentString)));
 
+    p.push_back (std::make_unique<APF> (juce::ParameterID { melody, 1 }, "Melody",
+        juce::NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.0f,
+        Attr().withLabel ("%").withStringFromValueFunction (percentString)));
+
     p.push_back (std::make_unique<APF> (juce::ParameterID { scaleShift, 1 }, "Scale Shift",
         juce::NormalisableRange<float> { -12.0f, 12.0f, 1.0f }, 0.0f, Attr().withLabel ("st")));
 

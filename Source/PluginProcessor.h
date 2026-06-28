@@ -99,7 +99,7 @@ private:
     juce::AudioBuffer<float> dryBuf, activeBuf, snapBuf, tunedBuf;
     std::vector<float>       transientEnv;
 
-    juce::SmoothedValue<float> colorSm, amountSm, mixSm, outputSm, formantSm, gammaSm, gateSm;
+    juce::SmoothedValue<float> colorSm, amountSm, melodySm, mixSm, outputSm, formantSm, gammaSm, gateSm;
     juce::SmoothedValue<float> colourGain; // master colour fade (0 when no grid -> stops on note-off)
     std::array<float, 2> dcX1 {}, dcY1 {};  // input DC blocker state
 

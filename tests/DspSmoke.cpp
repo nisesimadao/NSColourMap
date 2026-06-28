@@ -154,6 +154,66 @@ int main()
         CHECK (e440 > 3.0 * e440In);    // grid note emphasised vs raw input
     }
 
+    // ── Melody focus knob ─────────────────────────────────────────────────────
+    // At zero it preserves the wide grid character; when raised it should make a
+    // grid note related to the input stand out more than unrelated grid notes.
+    {
+        const double sr = 48000.0;
+        const int    N  = 24000;
+
+        TargetNoteList list;
+        list.count = 3;
+        list.notes[0] = 60; list.freqs[0] = midiNoteToHz (60.0f); // C4
+        list.notes[1] = 67; list.freqs[1] = midiNoteToHz (67.0f); // G4, input-related
+        list.notes[2] = 70; list.freqs[2] = midiNoteToHz (70.0f); // Bb4
+
+        auto run = [&] (float melody) {
+            ColourMappingCore core;
+            core.prepare (sr);
+            core.setTargets (list, 32);
+
+            std::vector<float> inL ((size_t) N), inR ((size_t) N), outL ((size_t) N), outR ((size_t) N);
+            for (int i = 0; i < N; ++i)
+            {
+                const float t = (float) i / (float) sr;
+                const float v = 0.24f * std::sin (2.0f * 3.14159265358979323846f * list.freqs[1] * t)
+                              + 0.08f * std::sin (2.0f * 3.14159265358979323846f * 1234.0f * t);
+                inL[(size_t) i] = v;
+                inR[(size_t) i] = v;
+            }
+
+            ColourMappingCore::Settings s;
+            s.color01 = 1.0f; s.amount = 1.0f; s.melody = melody;
+            s.profile = getCharacterProfile (Character::color);
+
+            const int B = 256;
+            std::vector<float> tL ((size_t) B), tR ((size_t) B), dL ((size_t) B), dR ((size_t) B);
+            for (int off = 0; off < N; off += B)
+            {
+                const int n = std::min (B, N - off);
+                for (int i = 0; i < n; ++i)
+                {
+                    tL[(size_t) i] = dL[(size_t) i] = inL[(size_t) (off + i)];
+                    tR[(size_t) i] = dR[(size_t) i] = inR[(size_t) (off + i)];
+                }
+                float* tuned[2] = { tL.data(), tR.data() };
+                const float* dry[2] = { dL.data(), dR.data() };
+                ColourMappingCore::Energies e;
+                core.process (tuned, dry, 2, n, s, e);
+                for (int i = 0; i < n; ++i) outL[(size_t) (off + i)] = tL[(size_t) i];
+            }
+
+            std::vector<float> outHalf (outL.begin() + N / 2, outL.end());
+            const double eG  = bandRms (outHalf, list.freqs[1], sr);
+            const double eBb = bandRms (outHalf, list.freqs[2], sr);
+            return eG / (eBb + 1.0e-9);
+        };
+
+        const double wideRatio    = run (0.0f);
+        const double focusedRatio = run (1.0f);
+        CHECK (focusedRatio > wideRatio * 1.35);
+    }
+
     if (failures == 0)
         std::printf ("All NSColourMap DSP smoke tests passed.\n");
     else

@@ -551,6 +551,7 @@ NSColourMapAudioProcessorEditor::NSColourMapAudioProcessorEditor (NSColourMapAud
     configureKnob (colorKnob, colorLabel, "COLOR");
     colorKnob.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 84, 20);
     configureKnob (amountKnob, amountLabel, "Amount");
+    configureKnob (melodyKnob, melodyLabel, "Melody");
     configureKnob (formantKnob, formantLabel, "Formant");
     configureKnob (transientKnob, transientLabel, "Transient");
     configureKnob (mixKnob, mixLabel, "Mix");
@@ -567,6 +568,7 @@ NSColourMapAudioProcessorEditor::NSColourMapAudioProcessorEditor (NSColourMapAud
     using JS = juce::String;
     colorKnob.setTooltip     (JS::fromUTF8 ("COLOR: 色の量。0-100%でドライ→キーに染める、100-200%で共鳴と煌びやかなテイルを追加。まずこれを回す"));
     amountKnob.setTooltip     (JS::fromUTF8 ("Amount: グリッド(キー)へ寄せる強さ"));
+    melodyKnob.setTooltip     (JS::fromUTF8 ("Melody: 今のシャリシャリ感を残しつつ、上げるほど入力に近いグリッド音を前に出してメロディックにする"));
     formantKnob.setTooltip    (JS::fromUTF8 ("Formant: 母音/サイズ感（−で太く低く、＋で細く高く）"));
     transientKnob.setTooltip  (JS::fromUTF8 ("Transient: アタックをドライのまま通す量"));
     mixKnob.setTooltip        (JS::fromUTF8 ("Mix: 原音と処理音のバランス"));
@@ -606,6 +608,7 @@ NSColourMapAudioProcessorEditor::NSColourMapAudioProcessorEditor (NSColourMapAud
     auto& s = audioProcessor.getState();
     colorAtt      = std::make_unique<SliderAttachment> (s, nscm::params::color,      colorKnob);
     amountAtt     = std::make_unique<SliderAttachment> (s, nscm::params::amount,     amountKnob);
+    melodyAtt     = std::make_unique<SliderAttachment> (s, nscm::params::melody,     melodyKnob);
     formantAtt    = std::make_unique<SliderAttachment> (s, nscm::params::formant,    formantKnob);
     transientAtt  = std::make_unique<SliderAttachment> (s, nscm::params::transient,  transientKnob);
     mixAtt        = std::make_unique<SliderAttachment> (s, nscm::params::mix,        mixKnob);
@@ -677,9 +680,9 @@ void NSColourMapAudioProcessorEditor::updateMainVisibility()
         c->setVisible (main);
     for (auto& b : gridModeButtons) b.setVisible (main);
     for (auto& b : characterButtons) b.setVisible (main);
-    for (auto* s : { &colorKnob, &amountKnob, &formantKnob, &transientKnob, &mixKnob, &outputKnob })
+    for (auto* s : { &colorKnob, &amountKnob, &melodyKnob, &formantKnob, &transientKnob, &mixKnob, &outputKnob })
         s->setVisible (main);
-    for (auto* l : { &colorLabel, &amountLabel, &formantLabel, &transientLabel, &mixLabel, &outputLabel })
+    for (auto* l : { &colorLabel, &amountLabel, &melodyLabel, &formantLabel, &transientLabel, &mixLabel, &outputLabel })
         l->setVisible (main);
 
     const bool adv = main && showAdvanced;
@@ -727,8 +730,8 @@ void NSColourMapAudioProcessorEditor::timerCallback()
     animBtn (freezeButton); animBtn (sideMuteButton); animBtn (multirateButton);
 
     // Eased "push in" on knobs while held/dragged.
-    juce::Slider* knobs[] = { &colorKnob, &amountKnob, &formantKnob, &transientKnob, &mixKnob, &outputKnob,
-                              &gammaKnob, &morphKnob, &gateKnob, &lowCutKnob, &highCutKnob, &scaleShiftKnob };
+    juce::Slider* knobs[] = { &colorKnob, &amountKnob, &melodyKnob, &formantKnob, &transientKnob, &mixKnob, &outputKnob,
+                              &gammaKnob, &morphKnob, &gateKnob, &airKnob, &lowCutKnob, &highCutKnob, &scaleShiftKnob };
     for (auto* k : knobs)
     {
         const float cur = (float) k->getProperties().getWithDefault ("press", 0.0);
@@ -839,7 +842,7 @@ void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
         g.fillRoundedRectangle (badge, 5.0f);
         g.setColour (accent);
         g.setFont (sectionFont());
-        g.drawText ("v0.8.4", badge.toNearestInt(), juce::Justification::centred);
+        g.drawText ("v0.8.5", badge.toNearestInt(), juce::Justification::centred);
         area.removeFromTop (34);
 
         g.setColour (panelLight.brighter (0.1f));
@@ -950,9 +953,9 @@ void NSColourMapAudioProcessorEditor::layoutClassic (juce::Rectangle<int> area)
         colorLabel.setBounds (big.removeFromTop (16));
         colorKnob.setBounds (big);
 
-        juce::Slider* ks[] = { &amountKnob, &formantKnob, &transientKnob, &mixKnob, &outputKnob };
-        juce::Label*  ls[] = { &amountLabel, &formantLabel, &transientLabel, &mixLabel, &outputLabel };
-        const int n = 5;
+        juce::Slider* ks[] = { &amountKnob, &melodyKnob, &formantKnob, &transientKnob, &mixKnob, &outputKnob };
+        juce::Label*  ls[] = { &amountLabel, &melodyLabel, &formantLabel, &transientLabel, &mixLabel, &outputLabel };
+        const int n = 6;
         const int w = colorSection.getWidth() / n;
         for (int i = 0; i < n; ++i)
         {
@@ -1038,19 +1041,19 @@ void NSColourMapAudioProcessorEditor::layoutClean (juce::Rectangle<int> area)
 
         inner.removeFromLeft (12);
 
-        // Right: TONE — Amount/Formant/Transient (row 1), Mix/Output (row 2)
+        // Right: TONE — Amount/Melody/Formant/Transient (row 1), Mix/Output (row 2)
         rTitleTone = inner.removeFromTop (15);
         inner.removeFromTop (2);
         auto row1 = inner.removeFromTop (inner.getHeight() / 2);
         auto row2 = inner;
-        juce::Slider* r1k[] = { &amountKnob, &formantKnob, &transientKnob };
-        juce::Label*  r1l[] = { &amountLabel, &formantLabel, &transientLabel };
+        juce::Slider* r1k[] = { &amountKnob, &melodyKnob, &formantKnob, &transientKnob };
+        juce::Label*  r1l[] = { &amountLabel, &melodyLabel, &formantLabel, &transientLabel };
         juce::Slider* r2k[] = { &mixKnob, &outputKnob };
         juce::Label*  r2l[] = { &mixLabel, &outputLabel };
-        const int w1 = row1.getWidth() / 3;
-        for (int i = 0; i < 3; ++i)
+        const int w1 = row1.getWidth() / 4;
+        for (int i = 0; i < 4; ++i)
         {
-            auto col = row1.removeFromLeft (i == 2 ? row1.getWidth() : w1).reduced (3, 1);
+            auto col = row1.removeFromLeft (i == 3 ? row1.getWidth() : w1).reduced (3, 1);
             r1l[i]->setBounds (col.removeFromTop (13));
             r1k[i]->setBounds (col);
         }
