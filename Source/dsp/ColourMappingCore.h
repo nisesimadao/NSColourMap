@@ -71,6 +71,7 @@ public:
         float amount     = 0.70f;
         float gate       = 0.0f;
         float morph      = 0.0f; // imprint the dry's fast contour onto the wet (transient preserve / tail control)
+        float sizzle     = 0.0f; // user "Air" — smooth high-frequency crispness
         CharacterProfile profile {};
     };
 
@@ -160,6 +161,7 @@ public:
         cs.colour   = s.color01 + s.colorBoost * 0.5f;
         cs.drive    = prof.drive * 0.4f;
         cs.air      = clampf (prof.air * (0.3f + 0.7f * s.color01) + s.colorBoost * 0.5f, 0.0f, 1.2f);
+        cs.sizzle   = s.sizzle;
         cs.width    = prof.width;
         cs.highEmph = prof.highEmph;
         colour.process (tuned, numChannels, numSamples, cs);

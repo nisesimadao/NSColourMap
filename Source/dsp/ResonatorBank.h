@@ -130,10 +130,11 @@ public:
 
             if (t.air > 0.0f)
             {
-                // Octave-up resonance, higher Q + a few cents of detune -> shimmer.
+                // Octave-up resonance with a few cents of detune -> shimmer. Lower Q than
+                // the fundamental so it reads as smooth air rather than a harsh peak.
                 const float hi = v.currentHz * 2.0f;
-                v.leftHi.setCoeffs  (hi * 0.9994f, t.q * 1.5f, sampleRate);
-                v.rightHi.setCoeffs (hi * 1.0006f, t.q * 1.5f, sampleRate);
+                v.leftHi.setCoeffs  (hi * 0.9994f, t.q * 0.9f, sampleRate);
+                v.rightHi.setCoeffs (hi * 1.0006f, t.q * 0.9f, sampleRate);
             }
         }
 

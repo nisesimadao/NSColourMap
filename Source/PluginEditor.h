@@ -143,8 +143,8 @@ private:
         AnimatedButton { "Alien" }, AnimatedButton { "Glitch" } };
 
     // Advanced drawer
-    juce::Slider gammaKnob, morphKnob, gateKnob, lowCutKnob, highCutKnob;
-    juce::Label  gammaLabel, morphLabel, gateLabel, lowCutLabel, highCutLabel;
+    juce::Slider gammaKnob, morphKnob, gateKnob, airKnob, lowCutKnob, highCutKnob;
+    juce::Label  gammaLabel, morphLabel, gateLabel, airLabel, lowCutLabel, highCutLabel;
     AnimatedToggle sideMuteButton { "Side Mute" }, multirateButton { "Multirate" };
 
     int   currentTab = 0;
@@ -157,7 +157,7 @@ private:
                          rTitleSource, rTitleChar, rTitleColor, rTitleTone;
 
     std::unique_ptr<SliderAttachment>   colorAtt, amountAtt, formantAtt, transientAtt, mixAtt, outputAtt,
-                                        scaleShiftAtt, gammaAtt, morphAtt, gateAtt, lowCutAtt, highCutAtt, qualityAtt;
+                                        scaleShiftAtt, gammaAtt, morphAtt, gateAtt, airAtt, lowCutAtt, highCutAtt, qualityAtt;
     std::unique_ptr<ComboBoxAttachment> keyAtt, scaleAtt;
     std::unique_ptr<ButtonAttachment>   freezeAtt, sideMuteAtt, multirateAtt;
 

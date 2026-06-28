@@ -15,6 +15,7 @@ inline constexpr auto gamma       = "gamma";
 inline constexpr auto transient   = "transient";
 inline constexpr auto morph       = "morph";
 inline constexpr auto gate        = "gate";
+inline constexpr auto air         = "air";
 inline constexpr auto lowCut      = "lowCut";
 inline constexpr auto highCut     = "highCut";
 inline constexpr auto sideMute    = "sideMute";
