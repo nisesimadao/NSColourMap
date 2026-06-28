@@ -120,21 +120,34 @@ void NSColourMapLookAndFeel::drawComboBox (juce::Graphics& g, int width, int hei
 }
 
 void NSColourMapLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height,
-                                              float sliderPos, float rotaryStartAngle, float rotaryEndAngle, juce::Slider&)
+                                              float sliderPos, float rotaryStartAngle, float rotaryEndAngle, juce::Slider& slider)
 {
+    // Eased "push in" amount while the knob is held (set by the editor timer).
+    const float press = (float) slider.getProperties().getWithDefault ("press", 0.0);
+
     const auto rawBounds = juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height).reduced (4.0f);
-    const auto diameter  = juce::jmin (rawBounds.getWidth(), rawBounds.getHeight());
+    const auto diameter0 = juce::jmin (rawBounds.getWidth(), rawBounds.getHeight());
+    const auto diameter  = diameter0 * (1.0f - 0.06f * press);   // shrink when pressed
     const auto bounds    = juce::Rectangle<float> (diameter, diameter).withCentre (rawBounds.getCentre());
     const auto radius    = bounds.getWidth() * 0.5f;
     const auto centre    = bounds.getCentre();
     const auto angle     = rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
     const float arcThick = juce::jmax (3.0f, radius * 0.11f);
 
-    g.setGradientFill (juce::ColourGradient (juce::Colour { 0xff3d444du }, centre.x, bounds.getY(),
-                                             juce::Colour { 0xff171a1du }, centre.x, bounds.getBottom(), false));
+    // Body — darkens slightly when pushed in.
+    const float dim = 0.18f * press;
+    g.setGradientFill (juce::ColourGradient (juce::Colour { 0xff3d444du }.darker (dim), centre.x, bounds.getY(),
+                                             juce::Colour { 0xff171a1du }.darker (dim), centre.x, bounds.getBottom(), false));
     g.fillEllipse (bounds);
     g.setColour (juce::Colour { 0xff090a0cu });
     g.drawEllipse (bounds, 1.5f);
+
+    // Inner shadow ring to read as "depressed".
+    if (press > 0.001f)
+    {
+        g.setColour (juce::Colours::black.withAlpha (0.30f * press));
+        g.drawEllipse (bounds.reduced (1.5f), 2.0f);
+    }
 
     juce::Path groove;
     groove.addCentredArc (centre.x, centre.y, radius - arcThick - 1.0f, radius - arcThick - 1.0f, 0.0f,
@@ -710,6 +723,18 @@ void NSColourMapAudioProcessorEditor::timerCallback()
     animBtn (mainTab); animBtn (aboutTab); animBtn (styleButton); animBtn (advancedButton);
     animBtn (freezeButton); animBtn (sideMuteButton); animBtn (multirateButton);
 
+    // Eased "push in" on knobs while held/dragged.
+    juce::Slider* knobs[] = { &colorKnob, &amountKnob, &formantKnob, &transientKnob, &mixKnob, &outputKnob,
+                              &gammaKnob, &morphKnob, &gateKnob, &lowCutKnob, &highCutKnob, &scaleShiftKnob };
+    for (auto* k : knobs)
+    {
+        const float cur = (float) k->getProperties().getWithDefault ("press", 0.0);
+        const float tgt = k->isMouseButtonDown() ? 1.0f : 0.0f;
+        const float nv  = cur + (tgt > cur ? 0.55f : 0.22f) * (tgt - cur);
+        if (std::abs (nv - cur) > 0.004f)      { k->getProperties().set ("press", nv);  k->repaint(); }
+        else if (std::abs (tgt - cur) > 1.0e-4f) { k->getProperties().set ("press", tgt); k->repaint(); }
+    }
+
     // Ease the COLOR glow toward the live colour energy (fast attack, slow release).
     const float target = juce::jlimit (0.0f, 1.0f,
                          (audioProcessor.getColoredEnergy() * 6.0f + audioProcessor.getTunedEnergy() * 3.0f));
@@ -811,7 +836,7 @@ void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
         g.fillRoundedRectangle (badge, 5.0f);
         g.setColour (accent);
         g.setFont (sectionFont());
-        g.drawText ("v0.8.1", badge.toNearestInt(), juce::Justification::centred);
+        g.drawText ("v0.8.2", badge.toNearestInt(), juce::Justification::centred);
         area.removeFromTop (34);
 
         g.setColour (panelLight.brighter (0.1f));
