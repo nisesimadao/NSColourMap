@@ -72,28 +72,31 @@ NSColourMapLookAndFeel::NSColourMapLookAndFeel()
 }
 
 void NSColourMapLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& button,
-                                                   const juce::Colour&, bool highlighted, bool)
+                                                   const juce::Colour&, bool highlighted, bool down)
 {
-    const auto bounds   = button.getLocalBounds().toFloat();
-    const auto selected = button.getToggleState();
+    const auto bounds = button.getLocalBounds().toFloat();
 
-    if (selected)
+    // Eased select/hover state (animated) when available.
+    float sel = button.getToggleState() ? 1.0f : 0.0f;
+    float hov = highlighted ? 1.0f : 0.0f;
+    if (auto* ab = dynamic_cast<AnimatedButton*> (&button)) { sel = ab->sel; hov = ab->hover; }
+
+    if (hov > 0.001f)
     {
-        g.setColour (accent.withAlpha (0.12f));
+        g.setColour (juce::Colours::white.withAlpha ((down ? 0.09f : 0.05f) * hov));
         g.fillRoundedRectangle (bounds.reduced (1.0f, 2.0f), 4.0f);
     }
-    else if (highlighted)
+    if (sel > 0.001f)
     {
-        g.setColour (juce::Colours::white.withAlpha (0.04f));
+        g.setColour (accent.withAlpha (0.14f * sel));
         g.fillRoundedRectangle (bounds.reduced (1.0f, 2.0f), 4.0f);
-    }
 
-    if (selected)
-    {
-        g.setColour (accent);
-        g.fillRoundedRectangle (
-            juce::Rectangle<float> (bounds.getX() + 7.0f, bounds.getBottom() - 3.0f,
-                                    bounds.getWidth() - 14.0f, 2.5f), 1.2f);
+        // Underline grows out from the centre as the button becomes selected.
+        const float fullW = bounds.getWidth() - 14.0f;
+        const float w = fullW * sel;
+        g.setColour (accent.withAlpha (sel));
+        g.fillRoundedRectangle (juce::Rectangle<float> (bounds.getCentreX() - w * 0.5f,
+                                                        bounds.getBottom() - 3.0f, w, 2.5f), 1.2f);
     }
 }
 
@@ -160,25 +163,29 @@ void NSColourMapLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleBu
                                               bool highlighted, bool)
 {
     const auto bounds = button.getLocalBounds().toFloat().reduced (1.0f);
-    const auto on     = button.getToggleState();
-    const auto base   = on ? accent.withAlpha (0.22f)
-                           : (highlighted ? panelLight.brighter (0.1f) : panelLight);
 
-    g.setColour (base);
+    float sel = button.getToggleState() ? 1.0f : 0.0f;
+    float hov = highlighted ? 1.0f : 0.0f;
+    if (auto* at = dynamic_cast<AnimatedToggle*> (&button)) { sel = at->sel; hov = at->hover; }
+
+    const auto base = panelLight.brighter (0.1f * hov);
+    g.setColour (base.overlaidWith (accent.withAlpha (0.22f * sel)));
     g.fillRoundedRectangle (bounds, 4.0f);
-    g.setColour (on ? accent : juce::Colour { 0xff46505au });
-    g.drawRoundedRectangle (bounds, 4.0f, on ? 1.8f : 1.0f);
+    g.setColour (juce::Colour { 0xff46505au }.overlaidWith (accent.withAlpha (sel)));
+    g.drawRoundedRectangle (bounds, 4.0f, 1.0f + 0.8f * sel);
 
-    const float tickSize = juce::jmin (bounds.getHeight() * 0.42f, 9.0f);
-    const float tickX    = bounds.getX() + 7.0f;
-    const float tickY    = bounds.getCentreY() - tickSize * 0.5f;
-    g.setColour (on ? accent : mutedText);
-    g.fillEllipse (tickX, tickY, tickSize, tickSize);
+    // Tick dot grows + brightens as it turns on.
+    const float maxTick = juce::jmin (bounds.getHeight() * 0.42f, 9.0f);
+    const float tickSize = maxTick * (0.7f + 0.3f * sel);
+    const float tickCx   = bounds.getX() + 7.0f + maxTick * 0.5f;
+    const float tickCy   = bounds.getCentreY();
+    g.setColour (mutedText.overlaidWith (accent.withAlpha (sel)));
+    g.fillEllipse (tickCx - tickSize * 0.5f, tickCy - tickSize * 0.5f, tickSize, tickSize);
 
     g.setFont (sectionFont());
-    g.setColour (on ? text : mutedText);
+    g.setColour (mutedText.overlaidWith (text.withAlpha (sel)));
     auto textArea = bounds.toNearestInt();
-    textArea.removeFromLeft ((int) (tickX - bounds.getX()) + (int) tickSize + 5);
+    textArea.removeFromLeft ((int) (7.0f + maxTick) + 5);
     g.drawText (button.getButtonText(), textArea, juce::Justification::centredLeft, true);
 }
 
@@ -695,6 +702,14 @@ void NSColourMapAudioProcessorEditor::timerCallback()
     syncRadios();
     repaint (midiIndicator.getBounds().expanded (8));
 
+    // Eased button select/hover transitions.
+    advancedButton.setToggleState (showAdvanced, juce::dontSendNotification);
+    auto animBtn = [] (auto& b) { if (stepButtonAnim (b)) b.repaint(); };
+    for (auto& b : gridModeButtons)  animBtn (b);
+    for (auto& b : characterButtons) animBtn (b);
+    animBtn (mainTab); animBtn (aboutTab); animBtn (styleButton); animBtn (advancedButton);
+    animBtn (freezeButton); animBtn (sideMuteButton); animBtn (multirateButton);
+
     // Ease the COLOR glow toward the live colour energy (fast attack, slow release).
     const float target = juce::jlimit (0.0f, 1.0f,
                          (audioProcessor.getColoredEnergy() * 6.0f + audioProcessor.getTunedEnergy() * 3.0f));
@@ -706,8 +721,6 @@ void NSColourMapAudioProcessorEditor::timerCallback()
         if (currentTab == 0 && uiStyle == 0)
             repaint (colorKnob.getBounds().expanded (26));
     }
-
-    advancedButton.setToggleState (showAdvanced, juce::dontSendNotification);
 }
 
 void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
@@ -798,7 +811,7 @@ void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
         g.fillRoundedRectangle (badge, 5.0f);
         g.setColour (accent);
         g.setFont (sectionFont());
-        g.drawText ("v0.8.0", badge.toNearestInt(), juce::Justification::centred);
+        g.drawText ("v0.8.1", badge.toNearestInt(), juce::Justification::centred);
         area.removeFromTop (34);
 
         g.setColour (panelLight.brighter (0.1f));
