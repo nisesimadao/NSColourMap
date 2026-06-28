@@ -70,6 +70,7 @@ void NSColourMapAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
     formantSm.reset (currentSampleRate, 0.06);
     colourGain.reset (currentSampleRate, 0.08);          // ~80 ms colour fade in/out
     colourGain.setCurrentAndTargetValue (0.0f);
+    dcX1.fill (0.0f); dcY1.fill (0.0f);
 
     colorSm.setCurrentAndTargetValue   (getValue (parameters, params::color));
     amountSm.setCurrentAndTargetValue  (getValue (parameters, params::amount));
@@ -79,7 +80,13 @@ void NSColourMapAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
     gammaSm.setCurrentAndTargetValue   (getValue (parameters, params::gamma));
     gateSm.setCurrentAndTargetValue    (getValue (parameters, params::gate));
 
-    setLatencySamples (0);
+    // Report the correct latency for the CURRENT quality up front, so offline
+    // render / PDC reads the right value (it queries latency after prepareToPlay,
+    // before the first processBlock). 0 Latency = 0; High Quality = STFT fftSize.
+    const int q = (int) getChoice (parameters, params::quality, 0);
+    reportedLatency = (q == 1) ? spectral.getLatency() : 0;
+    dryDelay.setDelay ((float) reportedLatency);
+    setLatencySamples (reportedLatency);
 }
 
 void NSColourMapAudioProcessor::releaseResources() {}
@@ -103,6 +110,21 @@ void NSColourMapAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
 
     if (numCh <= 0 || numSamples <= 0)
         return;
+
+    // ── Input safety: DC blocker (spec §12.1) ─────────────────────────────────
+    for (int ch = 0; ch < numCh; ++ch)
+    {
+        float* d = buffer.getWritePointer (ch);
+        float x1 = dcX1[(size_t) ch], y1 = dcY1[(size_t) ch];
+        for (int s = 0; s < numSamples; ++s)
+        {
+            const float x = d[s];
+            const float y = x - x1 + 0.9975f * y1;  // ~one-pole highpass ≈ 20 Hz
+            x1 = x; y1 = y;
+            d[s] = y;
+        }
+        dcX1[(size_t) ch] = x1; dcY1[(size_t) ch] = y1;
+    }
 
     // ── Parameters ────────────────────────────────────────────────────────────
     const int   modeIdx   = (int) getChoice (parameters, params::mode, 0);

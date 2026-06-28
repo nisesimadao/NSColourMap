@@ -99,6 +99,7 @@ private:
 
     juce::SmoothedValue<float> colorSm, amountSm, mixSm, outputSm, formantSm, gammaSm, gateSm;
     juce::SmoothedValue<float> colourGain; // master colour fade (0 when no grid -> stops on note-off)
+    std::array<float, 2> dcX1 {}, dcY1 {};  // input DC blocker state
 
     std::atomic<float>        uiMidiActivity { 0.0f };
     std::atomic<float>        uiTransientFlash { 0.0f };
