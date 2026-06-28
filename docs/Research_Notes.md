@@ -27,6 +27,9 @@ Common needs:
 - Transient Bypass because Colour Bass and HiTECH need attack
 - Pseudo Formant Tone for vocal / robot / alien timbre
 - HiTECH as a tuning mode for fast, hard, short sounds
+- Chroma-style workflow should stay fast and melodic: keep the existing wide
+  colour/shimmer by default, then expose a single Melody macro that foregrounds
+  input-related grid notes instead of replacing the colour engine.
 
 ## What NSColourMap does **not** do in the MVP
 

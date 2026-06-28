@@ -9,6 +9,7 @@ inline constexpr auto mode        = "mode";        // Grid Mode
 inline constexpr auto character   = "character";   // Character mode
 inline constexpr auto color       = "color";       // Big COLOR 0..200%
 inline constexpr auto amount      = "amount";
+inline constexpr auto melody      = "melody";
 inline constexpr auto scaleShift  = "scaleShift";
 inline constexpr auto formant     = "formant";
 inline constexpr auto gamma       = "gamma";

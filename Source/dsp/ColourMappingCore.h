@@ -47,6 +47,9 @@ public:
         colour.reset();
         phase.fill (0.0f);
         shimPhase.fill (0.0f);
+        melodyEnv.fill (0.0f);
+        for (auto& d : melodyDet)
+            d.reset();
         lfoPhase = 0.0f;
         driveEnv = 0.0f;
         inEnv.fill (0.0f); wetEnv.fill (0.0f); matchGain.fill (1.0f); gateGain.fill (1.0f);
@@ -69,6 +72,7 @@ public:
         float color01    = 0.65f;
         float colorBoost = 0.0f;
         float amount     = 0.70f;
+        float melody     = 0.0f;  // 0 = existing wide grid colour, 1 = foreground the most input-related grid notes
         float gate       = 0.0f;
         float morph      = 0.0f; // imprint the dry's fast contour onto the wet (transient preserve / tail control)
         float sizzle     = 0.0f; // user "Air" — smooth high-frequency crispness
@@ -96,16 +100,18 @@ public:
 
         // ── Layer 1: grid oscillators driven by the input envelope ─────────────
         const int   nv     = targets.count;
-        const float oscNorm = nv > 0 ? 1.0f / std::sqrt ((float) nv) : 0.0f;
-        const float harm2  = 0.35f + 0.25f * s.colorBoost;   // 2nd harmonic
-        const float harm3  = 0.15f * s.color01 + 0.2f * s.colorBoost; // 3rd harmonic
+        const float melody = clampf (s.melody, 0.0f, 1.0f);
+        const float harm2  = (0.35f + 0.25f * s.colorBoost) * (1.0f - 0.30f * melody);   // 2nd harmonic
+        const float harm3  = (0.15f * s.color01 + 0.2f * s.colorBoost) * (1.0f - 0.45f * melody); // 3rd harmonic
         const float twoPi  = 6.28318530717958648f;
         const float nyq    = 0.45f * sampleRate;
         const float resMix = 0.22f;                           // small resonator emphasis (texture)
         const float oscMix = 1.15f + 0.45f * s.colorBoost;    // oscillator grid weight (dominant)
         // Shimmer: a detuned octave-up partial that slowly beats -> living sparkle.
-        const float shimAmt = clampf (prof.shimmer * (0.35f + 0.65f * s.color01) + s.colorBoost * 0.4f, 0.0f, 1.3f);
+        const float shimAmt = clampf ((prof.shimmer * (0.35f + 0.65f * s.color01) + s.colorBoost * 0.4f)
+                                      * (1.0f - 0.25f * melody), 0.0f, 1.3f);
         const float lfoInc  = twoPi * 0.6f / sampleRate;      // ~0.6 Hz movement
+        const float melCoef = std::exp (-1.0f / (0.055f * sampleRate));
 
         std::array<float, kMaxVoices> inc {};
         std::array<bool,  kMaxVoices> use2 {}, use3 {}, useShim {};
@@ -116,15 +122,31 @@ public:
             use2[(std::size_t) v]    = (2.0f * f) < nyq;           // band-limit harmonics
             use3[(std::size_t) v]    = (3.0f * f) < nyq;
             useShim[(std::size_t) v] = (2.0f * f) < nyq;
+            melodyDet[(std::size_t) v].setCoeffs (f, 7.0f, sampleRate);
         }
+        for (int v = nv; v < kMaxVoices; ++v)
+            melodyEnv[(std::size_t) v] = 0.0f;
 
         for (int n = 0; n < numSamples; ++n)
         {
             // mono input drive envelope
-            float mono = 0.0f;
-            for (int ch = 0; ch < chN; ++ch) mono += dryActive[(std::size_t) ch][n];
-            mono = std::abs (mono / (float) (chN > 0 ? chN : 1));
+            float monoRaw = 0.0f;
+            for (int ch = 0; ch < chN; ++ch) monoRaw += dryActive[(std::size_t) ch][n];
+            monoRaw /= (float) (chN > 0 ? chN : 1);
+            const float mono = std::abs (monoRaw);
             driveEnv = mono + envCoeff * (driveEnv - mono);
+
+            float melMax = 0.0f;
+            if (melody > 0.0f)
+            {
+                for (int v = 0; v < nv; ++v)
+                {
+                    const auto i = (std::size_t) v;
+                    const float det = std::abs (melodyDet[i].processBandpass (monoRaw));
+                    melodyEnv[i] = det + melCoef * (melodyEnv[i] - det);
+                    if (melodyEnv[i] > melMax) melMax = melodyEnv[i];
+                }
+            }
 
             lfoPhase += lfoInc;
             if (lfoPhase >= twoPi) lfoPhase -= twoPi;
@@ -132,23 +154,35 @@ public:
 
             // sum oscillators (fundamental + harmonics + detuned shimmer octave)
             float osc = 0.0f, shim = 0.0f;
+            float weightPower = 0.0f;
             for (int v = 0; v < nv; ++v)
             {
+                const auto i = (std::size_t) v;
+                float voiceWeight = 1.0f;
+                if (melody > 0.0f && melMax > 1.0e-6f)
+                {
+                    const float rel = clampf (melodyEnv[i] / (melMax + 1.0e-6f), 0.0f, 1.0f);
+                    const float focused = 0.18f + 1.85f * rel * rel;
+                    voiceWeight = (1.0f - melody) + melody * focused;
+                }
+
                 float p = phase[(std::size_t) v] + inc[(std::size_t) v];
                 if (p >= twoPi) p -= twoPi;
                 phase[(std::size_t) v] = p;
-                osc += std::sin (p)
+                osc += voiceWeight * (std::sin (p)
                      + (use2[(std::size_t) v] ? harm2 * std::sin (2.0f * p) : 0.0f)
-                     + (use3[(std::size_t) v] ? harm3 * std::sin (3.0f * p) : 0.0f);
+                     + (use3[(std::size_t) v] ? harm3 * std::sin (3.0f * p) : 0.0f));
+                weightPower += voiceWeight * voiceWeight;
 
                 if (shimAmt > 0.0f && useShim[(std::size_t) v])
                 {
                     float sp = shimPhase[(std::size_t) v] + inc[(std::size_t) v] * 2.0f * shimDetune;
                     if (sp >= twoPi) sp -= twoPi;
                     shimPhase[(std::size_t) v] = sp;
-                    shim += std::sin (sp);
+                    shim += voiceWeight * std::sin (sp);
                 }
             }
+            const float oscNorm = weightPower > 1.0e-6f ? 1.0f / std::sqrt (weightPower) : 0.0f;
             osc = (osc + shimAmt * shim) * oscNorm * driveEnv;
 
             // combine oscillator grid (dominant) with resonator emphasis
@@ -239,6 +273,8 @@ private:
     float driveEnv = 0.0f;
     float lfoPhase = 0.0f;
     std::array<float, kMaxVoices> phase {}, shimPhase {};
+    std::array<SvfResonator, kMaxVoices> melodyDet {};
+    std::array<float, kMaxVoices> melodyEnv {};
     std::array<float, 2> inEnv {}, wetEnv {}, matchGain {}, gateGain {}, fastInEnv {}, procEnv {};
 };
 } // namespace nscm

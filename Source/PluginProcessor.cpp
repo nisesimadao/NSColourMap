@@ -67,7 +67,7 @@ void NSColourMapAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
     transientEnv.assign ((size_t) block, 0.0f);
 
     const double ramp = 0.03;
-    for (auto* s : { &colorSm, &amountSm, &mixSm, &outputSm, &gammaSm, &gateSm })
+    for (auto* s : { &colorSm, &amountSm, &melodySm, &mixSm, &outputSm, &gammaSm, &gateSm })
         s->reset (currentSampleRate, ramp);
     formantSm.reset (currentSampleRate, 0.06);
     colourGain.reset (currentSampleRate, 0.08);          // ~80 ms colour fade in/out
@@ -76,6 +76,7 @@ void NSColourMapAudioProcessor::prepareToPlay (double sampleRate, int samplesPer
 
     colorSm.setCurrentAndTargetValue   (getValue (parameters, params::color));
     amountSm.setCurrentAndTargetValue  (getValue (parameters, params::amount));
+    melodySm.setCurrentAndTargetValue  (getValue (parameters, params::melody));
     mixSm.setCurrentAndTargetValue     (getValue (parameters, params::mix));
     outputSm.setCurrentAndTargetValue  (juce::Decibels::decibelsToGain (getValue (parameters, params::output)));
     formantSm.setCurrentAndTargetValue (getValue (parameters, params::formant));
@@ -157,6 +158,7 @@ void NSColourMapAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
 
     colorSm.setTargetValue   (getValue (parameters, params::color));
     amountSm.setTargetValue  (getValue (parameters, params::amount));
+    melodySm.setTargetValue  (getValue (parameters, params::melody));
     mixSm.setTargetValue     (getValue (parameters, params::mix));
     outputSm.setTargetValue  (juce::Decibels::decibelsToGain (getValue (parameters, params::output)));
     formantSm.setTargetValue (getValue (parameters, params::formant));
@@ -228,7 +230,7 @@ void NSColourMapAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         analyzer.pushBlock (out, numCh, numSamples);
 
         // keep block-rate smoothers moving so they are correct when we resume
-        colorSm.skip (numSamples); amountSm.skip (numSamples); gateSm.skip (numSamples);
+        colorSm.skip (numSamples); amountSm.skip (numSamples); melodySm.skip (numSamples); gateSm.skip (numSamples);
         formantSm.skip (numSamples); gammaSm.skip (numSamples); mixSm.skip (numSamples);
         uiInputEnergy.store (0.0f); uiTunedEnergy.store (0.0f); uiColoredEnergy.store (0.0f);
         uiTransientFlash.store (0.0f);
@@ -295,6 +297,7 @@ void NSColourMapAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     cset.color01    = juce::jmin (colorNow, 1.0f);
     cset.colorBoost = juce::jlimit (0.0f, 1.0f, colorNow - 1.0f);
     cset.amount     = amountSm.skip (numSamples);
+    cset.melody     = melodySm.skip (numSamples);
     cset.gate       = gateSm.skip (numSamples);
     cset.morph      = getValue (parameters, params::morph);
     cset.sizzle     = getValue (parameters, params::air);
