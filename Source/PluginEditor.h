@@ -74,6 +74,9 @@ private:
     void timerCallback() override;
     void syncRadios();
     void updateMainVisibility();
+    void layoutClassic (juce::Rectangle<int> area);
+    void layoutClean (juce::Rectangle<int> area);
+    void setUiStyle (int style);
 
     NSColourMapAudioProcessor& audioProcessor;
     NSColourMapLookAndFeel lnf;
@@ -85,6 +88,7 @@ private:
     juce::Component  midiIndicator;
     juce::TextButton qualityButton { "0 Lat" };
     juce::TextButton advancedButton { "ADV" };
+    juce::TextButton styleButton { "Clean" };
     juce::TextButton mainTab  { "Main" };
     juce::TextButton aboutTab { "About" };
 
@@ -117,6 +121,11 @@ private:
 
     int  currentTab = 0;
     bool showAdvanced = false;
+    int  uiStyle = 0; // 0 = Clean (default), 1 = Classic
+
+    // Clean-layout section rectangles (drawn as labelled panels in paint()).
+    juce::Rectangle<int> rSourcePanel, rEnginePanel,
+                         rTitleSource, rTitleChar, rTitleColor, rTitleTone;
 
     std::unique_ptr<SliderAttachment>   colorAtt, amountAtt, formantAtt, transientAtt, mixAtt, outputAtt,
                                         scaleShiftAtt, gammaAtt, morphAtt, gateAtt, lowCutAtt, highCutAtt;
