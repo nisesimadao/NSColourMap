@@ -55,24 +55,28 @@ float midiHz (float note) { return 440.0f * std::pow (2.0f, (note - 69.0f) / 12.
 
 void drawLiquidPanel (juce::Graphics& g, juce::Rectangle<float> r, float radius = 8.0f)
 {
-    g.setColour (glassShadow.withAlpha (0.20f));
-    g.fillRoundedRectangle (r.translated (0.0f, 2.0f), radius);
+    g.setColour (glassShadow.withAlpha (0.22f));
+    g.fillRoundedRectangle (r.translated (0.0f, 5.0f), radius);
+    g.setColour (juce::Colours::black.withAlpha (0.08f));
+    g.fillRoundedRectangle (r.expanded (1.0f).translated (0.0f, 1.0f), radius + 1.0f);
 
-    juce::ColourGradient material (juce::Colour { 0x41282f36u }, r.getX(), r.getY(),
-                                   juce::Colour { 0x2a0e1114u }, r.getX(), r.getBottom(), false);
-    material.addColour (0.45, juce::Colour { 0x3020262cu });
+    juce::ColourGradient material (juce::Colour { 0x18ffffffu }, r.getX(), r.getY(),
+                                   juce::Colour { 0x12000000u }, r.getX(), r.getBottom(), false);
+    material.addColour (0.34, juce::Colour { 0x1a8d99a3u });
+    material.addColour (0.74, juce::Colour { 0x1015171au });
     g.setGradientFill (material);
     g.fillRoundedRectangle (r, radius);
 
-    g.setColour (glassEdge.withAlpha (0.22f));
+    const auto inner = r.reduced (1.0f);
+    juce::ColourGradient depth (juce::Colours::white.withAlpha (0.012f), inner.getX(), inner.getY(),
+                                juce::Colours::black.withAlpha (0.055f), inner.getX(), inner.getBottom(), false);
+    g.setGradientFill (depth);
+    g.fillRoundedRectangle (inner, radius - 1.0f);
+
+    g.setColour (juce::Colours::white.withAlpha (0.070f));
     g.drawRoundedRectangle (r.reduced (0.5f), radius, 1.0f);
 
-    const auto gleam = juce::Rectangle<float> (r.getX() + 12.0f, r.getY() + 1.0f,
-                                               juce::jmin (r.getWidth() * 0.22f, 180.0f), 1.0f);
-    g.setColour (juce::Colours::white.withAlpha (0.045f));
-    g.fillRoundedRectangle (gleam, 0.5f);
-
-    g.setColour (juce::Colours::black.withAlpha (0.10f));
+    g.setColour (juce::Colours::black.withAlpha (0.16f));
     g.drawRoundedRectangle (r.reduced (1.5f), radius - 1.0f, 1.0f);
 }
 } // namespace
@@ -871,7 +875,7 @@ void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
         g.fillRoundedRectangle (badge, 5.0f);
         g.setColour (accent);
         g.setFont (sectionFont());
-        g.drawText ("v0.8.8", badge.toNearestInt(), juce::Justification::centred);
+        g.drawText ("v0.8.9", badge.toNearestInt(), juce::Justification::centred);
         area.removeFromTop (34);
 
         g.setColour (panelLight.brighter (0.1f));
