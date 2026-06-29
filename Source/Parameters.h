@@ -30,7 +30,7 @@ inline constexpr auto multirate   = "multirate";
 inline constexpr auto uiTab       = "uiTab";
 
 inline juce::StringArray modeNames()      { return { "Scale", "MIDI", "Hybrid", "UI", "Audio" }; }
-inline juce::StringArray characterNames() { return { "Clean", "Color", "Hyper", "Alien", "Glitch" }; }
+inline juce::StringArray characterNames() { return { "Clean", "Color", "Hyper", "Map", "Glitch" }; }
 inline juce::StringArray keyNames()       { return { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" }; }
 inline juce::StringArray scaleNames()     { return { "Major", "Natural Minor", "Harmonic Minor", "Dorian", "Phrygian",
                                                      "Lydian", "Mixolydian", "Minor Pentatonic", "Major Pentatonic",

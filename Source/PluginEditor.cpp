@@ -12,6 +12,8 @@ namespace
 const juce::Colour background  { 0xff15171a };
 const juce::Colour panel       { 0xff24282d };
 const juce::Colour panelLight  { 0xff30363d };
+const juce::Colour glassEdge   { 0x66ffffff };
+const juce::Colour glassShadow { 0x66000000 };
 const juce::Colour text        { 0xfff2f5f8 };
 const juce::Colour mutedText   { 0xff9aa4ad };
 const juce::Colour accent      { 0xff38c7f3 }; // TUNED (cyan)
@@ -758,12 +760,21 @@ void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
 {
     g.fillAll (background);
 
+    juce::ColourGradient bg (juce::Colour { 0xff1a1f24u }, 0.0f, 0.0f,
+                             juce::Colour { 0xff101214u }, 0.0f, (float) getHeight(), false);
+    bg.addColour (0.45, juce::Colour { 0xff16191du });
+    g.setGradientFill (bg);
+    g.fillAll();
+
     auto bounds = getLocalBounds();
-    g.setColour (juce::Colour { 0xff0f1113u });
+    g.setGradientFill (juce::ColourGradient (juce::Colour { 0xaa262d34u }, 0.0f, 0.0f,
+                                             juce::Colour { 0xaa0d0f11u }, 0.0f, 48.0f, false));
     g.fillRect (bounds.removeFromTop (48));
-    g.setColour (juce::Colour { 0xff000000u });
+    g.setColour (juce::Colours::white.withAlpha (0.06f));
+    g.drawHorizontalLine (0, 0.0f, (float) getWidth());
+    g.setColour (juce::Colours::black.withAlpha (0.58f));
     g.drawHorizontalLine (48, 0.0f, (float) getWidth());
-    g.setColour (juce::Colour { 0xff38404au });
+    g.setColour (juce::Colours::white.withAlpha (0.08f));
     g.drawHorizontalLine (49, 0.0f, (float) getWidth());
 
     // MIDI LED
@@ -791,10 +802,24 @@ void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
         auto drawPanel = [&] (juce::Rectangle<int> r)
         {
             if (r.isEmpty()) return;
-            g.setColour (juce::Colour { 0xff1d2024u });
-            g.fillRoundedRectangle (r.toFloat(), 8.0f);
-            g.setColour (juce::Colour { 0xff2c323a });
-            g.drawRoundedRectangle (r.toFloat(), 8.0f, 1.0f);
+            const auto rf = r.toFloat();
+            g.setColour (glassShadow.withAlpha (0.18f));
+            g.fillRoundedRectangle (rf.translated (0.0f, 3.0f), 8.0f);
+
+            juce::ColourGradient fill (juce::Colour { 0x66ffffff }, rf.getX(), rf.getY(),
+                                       juce::Colour { 0x22181d22 }, rf.getX(), rf.getBottom(), false);
+            fill.addColour (0.18, juce::Colour { 0x332f3841 });
+            fill.addColour (1.0, juce::Colour { 0x24111518 });
+            g.setGradientFill (fill);
+            g.fillRoundedRectangle (rf, 8.0f);
+
+            g.setColour (glassEdge.withAlpha (0.20f));
+            g.drawRoundedRectangle (rf.reduced (0.5f), 8.0f, 1.0f);
+            g.setColour (juce::Colours::white.withAlpha (0.11f));
+            g.drawLine (rf.getX() + 8.0f, rf.getY() + 1.0f,
+                        rf.getRight() - 8.0f, rf.getY() + 1.0f, 1.0f);
+            g.setColour (juce::Colours::black.withAlpha (0.20f));
+            g.drawRoundedRectangle (rf.reduced (1.5f), 7.0f, 1.0f);
         };
         auto drawTitle = [&] (juce::Rectangle<int> r, const char* t, juce::Justification j)
         {
@@ -829,8 +854,14 @@ void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
     {
         auto area = getLocalBounds();
         area.removeFromTop (54);
-        g.setColour (panel);
-        g.fillRoundedRectangle (getLocalBounds().reduced (22).withTrimmedTop (32).toFloat(), 8.0f);
+        const auto aboutPanel = getLocalBounds().reduced (22).withTrimmedTop (32).toFloat();
+        g.setColour (glassShadow.withAlpha (0.22f));
+        g.fillRoundedRectangle (aboutPanel.translated (0.0f, 3.0f), 8.0f);
+        g.setGradientFill (juce::ColourGradient (juce::Colour { 0x55333b44u }, aboutPanel.getX(), aboutPanel.getY(),
+                                                 juce::Colour { 0x33101417u }, aboutPanel.getX(), aboutPanel.getBottom(), false));
+        g.fillRoundedRectangle (aboutPanel, 8.0f);
+        g.setColour (glassEdge.withAlpha (0.18f));
+        g.drawRoundedRectangle (aboutPanel.reduced (0.5f), 8.0f, 1.0f);
         area.reduce (36, 24);
 
         g.setFont (titleFont());
@@ -842,7 +873,7 @@ void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
         g.fillRoundedRectangle (badge, 5.0f);
         g.setColour (accent);
         g.setFont (sectionFont());
-        g.drawText ("v0.8.6", badge.toNearestInt(), juce::Justification::centred);
+        g.drawText ("v0.8.7", badge.toNearestInt(), juce::Justification::centred);
         area.removeFromTop (34);
 
         g.setColour (panelLight.brighter (0.1f));
@@ -854,7 +885,7 @@ void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
         g.drawText ("Pitch-grid colour mapping for Colour Bass", area.removeFromTop (22), juce::Justification::centred, true);
         g.setFont (juce::Font (juce::FontOptions{}.withHeight (13.0f)));
         g.setColour (text.withAlpha (0.65f));
-        g.drawText ("PITCHMAP::COLORS x Chroma chimera  -  by nisesimadao", area.removeFromTop (22), juce::Justification::centred, true);
+        g.drawText ("Pitch-grid mapping x fast colour workflow  -  by nisesimadao", area.removeFromTop (22), juce::Justification::centred, true);
         area.removeFromTop (18);
 
         g.setFont (juce::Font (juce::FontOptions{}.withHeight (12.0f)));
@@ -935,7 +966,7 @@ void NSColourMapAudioProcessorEditor::layoutClassic (juce::Rectangle<int> area)
         area.removeFromBottom (6);
     }
 
-    // Character row (Clean / Color / Hyper / Alien / Glitch) — below the colour section.
+    // Character row (Clean / Color / Hyper / Map / Glitch) — below the colour section.
     auto charRow = area.removeFromBottom (28);
     {
         const int n = (int) characterButtons.size();

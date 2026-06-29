@@ -50,6 +50,10 @@ public:
         melodyEnv.fill (0.0f);
         for (auto& d : melodyDet)
             d.reset();
+        mapPhase.fill (0.0f);
+        mapEnv.fill (0.0f);
+        for (auto& d : mapDet)
+            d.reset();
         lfoPhase = 0.0f;
         driveEnv = 0.0f;
         inEnv.fill (0.0f); wetEnv.fill (0.0f); matchGain.fill (1.0f); gateGain.fill (1.0f);
@@ -100,18 +104,24 @@ public:
 
         // ── Layer 1: grid oscillators driven by the input envelope ─────────────
         const int   nv     = targets.count;
-        const float melody = clampf (s.melody, 0.0f, 1.0f);
-        const float harm2  = (0.35f + 0.25f * s.colorBoost) * (1.0f - 0.30f * melody);   // 2nd harmonic
-        const float harm3  = (0.15f * s.color01 + 0.2f * s.colorBoost) * (1.0f - 0.45f * melody); // 3rd harmonic
+        const float userMelody = clampf (s.melody, 0.0f, 1.0f);
+        const float mapFocus   = clampf (userMelody + prof.mapFocus * (1.0f - userMelody), 0.0f, 1.0f);
+        const float mapPurity  = clampf (prof.mapPurity * mapFocus, 0.0f, 1.0f);
+        const float harm2  = (0.35f + 0.25f * s.colorBoost) * (1.0f - 0.30f * mapFocus) * (1.0f - 0.28f * mapPurity);   // 2nd harmonic
+        const float harm3  = (0.15f * s.color01 + 0.2f * s.colorBoost) * (1.0f - 0.45f * mapFocus) * (1.0f - 0.50f * mapPurity); // 3rd harmonic
         const float twoPi  = 6.28318530717958648f;
         const float nyq    = 0.45f * sampleRate;
         const float resMix = 0.22f;                           // small resonator emphasis (texture)
         const float oscMix = 1.15f + 0.45f * s.colorBoost;    // oscillator grid weight (dominant)
         // Shimmer: a detuned octave-up partial that slowly beats -> living sparkle.
         const float shimAmt = clampf ((prof.shimmer * (0.35f + 0.65f * s.color01) + s.colorBoost * 0.4f)
-                                      * (1.0f - 0.25f * melody), 0.0f, 1.3f);
+                                      * (1.0f - 0.25f * mapFocus) * (1.0f - 0.45f * mapPurity), 0.0f, 1.3f);
         const float lfoInc  = twoPi * 0.6f / sampleRate;      // ~0.6 Hz movement
         const float melCoef = std::exp (-1.0f / (0.055f * sampleRate));
+        const float detQ    = 7.0f - 4.0f * mapFocus;         // broader in Map mode: off-grid notes pull to nearest slot
+        const float mapLayer = clampf (prof.mapFocus * (0.75f + 0.25f * s.color01)
+                                       * (0.75f + 0.25f * s.amount), 0.0f, 1.0f);
+        const float mapEnvCoeff = std::exp (-1.0f / (0.028f * sampleRate));
 
         std::array<float, kMaxVoices> inc {};
         std::array<bool,  kMaxVoices> use2 {}, use3 {}, useShim {};
@@ -122,10 +132,44 @@ public:
             use2[(std::size_t) v]    = (2.0f * f) < nyq;           // band-limit harmonics
             use3[(std::size_t) v]    = (3.0f * f) < nyq;
             useShim[(std::size_t) v] = (2.0f * f) < nyq;
-            melodyDet[(std::size_t) v].setCoeffs (f, 7.0f, sampleRate);
+            melodyDet[(std::size_t) v].setCoeffs (f, detQ, sampleRate);
         }
         for (int v = nv; v < kMaxVoices; ++v)
             melodyEnv[(std::size_t) v] = 0.0f;
+
+        int mapSlotCount = 0;
+        if (mapLayer > 0.0f && nv > 0)
+        {
+            constexpr int lowNote = 0;
+            constexpr int highNote = 127;
+            for (int note = lowNote; note <= highNote && mapSlotCount < kMapSlots; ++note)
+            {
+                int bestNote = targets.notes[0];
+                int bestDist = 999;
+                for (int v = 0; v < nv; ++v)
+                {
+                    const int tn = targets.notes[(std::size_t) v];
+                    const int dist = std::abs (tn - note);
+                    if (dist < bestDist)
+                    {
+                        bestDist = dist;
+                        bestNote = tn;
+                    }
+                }
+
+                const float srcHz = midiNoteToHz ((float) note);
+                const float dstHz = midiNoteToHz ((float) bestNote);
+                if (srcHz < 20.0f || srcHz > nyq || dstHz > nyq)
+                    continue;
+
+                const auto i = (std::size_t) mapSlotCount++;
+                mapDet[i].setCoeffs (srcHz, 8.0f, sampleRate);
+                mapInc[i] = twoPi * dstHz / sampleRate;
+                mapShiftSemis[i] = (float) (bestNote - note);
+            }
+        }
+        for (int i = mapSlotCount; i < kMapSlots; ++i)
+            mapEnv[(std::size_t) i] = 0.0f;
 
         for (int n = 0; n < numSamples; ++n)
         {
@@ -137,7 +181,7 @@ public:
             driveEnv = mono + envCoeff * (driveEnv - mono);
 
             float melMax = 0.0f;
-            if (melody > 0.0f)
+            if (mapFocus > 0.0f)
             {
                 for (int v = 0; v < nv; ++v)
                 {
@@ -146,6 +190,34 @@ public:
                     melodyEnv[i] = det + melCoef * (melodyEnv[i] - det);
                     if (melodyEnv[i] > melMax) melMax = melodyEnv[i];
                 }
+            }
+
+            float mapOsc = 0.0f;
+            float mapPower = 0.0f;
+            if (mapSlotCount > 0)
+            {
+                for (int i = 0; i < mapSlotCount; ++i)
+                {
+                    const auto idx = (std::size_t) i;
+                    const float bp = mapDet[idx].processBandpass (monoRaw);
+                    const float a = std::abs (bp);
+                    mapEnv[idx] = a + mapEnvCoeff * (mapEnv[idx] - a);
+
+                    float p = mapPhase[idx] + mapInc[idx];
+                    if (p >= twoPi) p -= twoPi;
+                    mapPhase[idx] = p;
+
+                    const float shift = std::abs (mapShiftSemis[idx]);
+                    const float shifted = shift > 0.5f ? 1.0f : 0.45f;
+                    const float wild = 1.0f + 0.10f * mapPurity * shift;
+                    const float y = std::sin (p) + 0.18f * mapPurity * std::sin (2.0f * p + 0.7f);
+                    const float w = mapEnv[idx] * shifted * wild;
+                    mapOsc += w * y;
+                    mapPower += w * w;
+                }
+                if (mapPower > 1.0e-8f)
+                    mapOsc *= 1.0f / std::sqrt (mapPower * 8.0f);
+                mapOsc *= driveEnv;
             }
 
             lfoPhase += lfoInc;
@@ -159,11 +231,12 @@ public:
             {
                 const auto i = (std::size_t) v;
                 float voiceWeight = 1.0f;
-                if (melody > 0.0f && melMax > 1.0e-6f)
+                if (mapFocus > 0.0f && melMax > 1.0e-6f)
                 {
                     const float rel = clampf (melodyEnv[i] / (melMax + 1.0e-6f), 0.0f, 1.0f);
-                    const float focused = 0.18f + 1.85f * rel * rel;
-                    voiceWeight = (1.0f - melody) + melody * focused;
+                    const float tightRel = rel * rel * ((1.0f - mapPurity) + mapPurity * rel);
+                    const float focused = (0.18f - 0.10f * mapPurity) + (1.85f + 0.95f * mapPurity) * tightRel;
+                    voiceWeight = (1.0f - mapFocus) + mapFocus * focused;
                 }
 
                 float p = phase[(std::size_t) v] + inc[(std::size_t) v];
@@ -184,6 +257,8 @@ public:
             }
             const float oscNorm = weightPower > 1.0e-6f ? 1.0f / std::sqrt (weightPower) : 0.0f;
             osc = (osc + shimAmt * shim) * oscNorm * driveEnv;
+            if (mapLayer > 0.0f)
+                osc = (1.0f - 0.55f * mapLayer) * osc + (1.05f + 0.35f * s.colorBoost) * mapLayer * mapOsc;
 
             // combine oscillator grid (dominant) with resonator emphasis
             for (int ch = 0; ch < chN; ++ch)
@@ -265,6 +340,8 @@ public:
     }
 
 private:
+    static constexpr int kMapSlots = 128;
+
     ResonatorBank   bank;
     ColourProcessor colour;
     TargetNoteList  targets;
@@ -275,6 +352,8 @@ private:
     std::array<float, kMaxVoices> phase {}, shimPhase {};
     std::array<SvfResonator, kMaxVoices> melodyDet {};
     std::array<float, kMaxVoices> melodyEnv {};
+    std::array<SvfResonator, kMapSlots> mapDet {};
+    std::array<float, kMapSlots> mapPhase {}, mapInc {}, mapEnv {}, mapShiftSemis {};
     std::array<float, 2> inEnv {}, wetEnv {}, matchGain {}, gateGain {}, fastInEnv {}, procEnv {};
 };
 } // namespace nscm
