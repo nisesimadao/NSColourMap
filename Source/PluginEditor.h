@@ -140,7 +140,7 @@ private:
     // Character row
     std::array<AnimatedButton, 5> characterButtons {
         AnimatedButton { "Clean" }, AnimatedButton { "Color" }, AnimatedButton { "Hyper" },
-        AnimatedButton { "Alien" }, AnimatedButton { "Glitch" } };
+        AnimatedButton { "Map" }, AnimatedButton { "Glitch" } };
 
     // Advanced drawer
     juce::Slider gammaKnob, morphKnob, gateKnob, airKnob, lowCutKnob, highCutKnob;

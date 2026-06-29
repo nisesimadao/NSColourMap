@@ -30,6 +30,11 @@ Common needs:
 - Chroma-style workflow should stay fast and melodic: keep the existing wide
   colour/shimmer by default, then expose a single Melody macro that foregrounds
   input-related grid notes instead of replacing the colour engine.
+- Map character research: pitch-grid colour tools are built around separating
+  pitched components, moving each component toward a selected scale/MIDI grid,
+  preserving transients, and shaping formant/gamma/range. NSColourMap keeps the
+  UI generic, but the former Alien slot now uses a fixed 128-pitch-slot layer
+  that detects semitone bands and resynthesizes them at nearest grid notes.
 
 ## What NSColourMap does **not** do in the MVP
 

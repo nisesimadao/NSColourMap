@@ -214,6 +214,61 @@ int main()
         CHECK (focusedRatio > wideRatio * 1.35);
     }
 
+    // ── Map character pitch-slot remapping ────────────────────────────────────
+    // The Map character should move off-grid pitched input toward the nearest
+    // grid slot more strongly than the normal Color character.
+    {
+        const double sr = 48000.0;
+        const int    N  = 24000;
+
+        TargetNoteList list;
+        list.count = 1;
+        list.notes[0] = 60; list.freqs[0] = midiNoteToHz (60.0f); // C4 target
+
+        auto run = [&] (Character ch) {
+            ColourMappingCore core;
+            core.prepare (sr);
+            core.setTargets (list, 32);
+
+            std::vector<float> inL ((size_t) N), inR ((size_t) N), outL ((size_t) N);
+            for (int i = 0; i < N; ++i)
+            {
+                const float t = (float) i / (float) sr;
+                const float v = 0.22f * std::sin (2.0f * 3.14159265358979323846f * midiNoteToHz (61.0f) * t);
+                inL[(size_t) i] = v;
+                inR[(size_t) i] = v;
+            }
+
+            ColourMappingCore::Settings s;
+            s.color01 = 1.0f; s.amount = 1.0f; s.melody = 0.0f;
+            s.profile = getCharacterProfile (ch);
+
+            const int B = 256;
+            std::vector<float> tL ((size_t) B), tR ((size_t) B), dL ((size_t) B), dR ((size_t) B);
+            for (int off = 0; off < N; off += B)
+            {
+                const int n = std::min (B, N - off);
+                for (int i = 0; i < n; ++i)
+                {
+                    tL[(size_t) i] = dL[(size_t) i] = inL[(size_t) (off + i)];
+                    tR[(size_t) i] = dR[(size_t) i] = inR[(size_t) (off + i)];
+                }
+                float* tuned[2] = { tL.data(), tR.data() };
+                const float* dry[2] = { dL.data(), dR.data() };
+                ColourMappingCore::Energies e;
+                core.process (tuned, dry, 2, n, s, e);
+                for (int i = 0; i < n; ++i) outL[(size_t) (off + i)] = tL[(size_t) i];
+            }
+
+            std::vector<float> outHalf (outL.begin() + N / 2, outL.end());
+            const double eC  = bandRms (outHalf, midiNoteToHz (60.0f), sr);
+            const double eCs = bandRms (outHalf, midiNoteToHz (61.0f), sr);
+            return eC / (eCs + 1.0e-9);
+        };
+
+        CHECK (run (Character::alien) > run (Character::color) * 1.20);
+    }
+
     if (failures == 0)
         std::printf ("All NSColourMap DSP smoke tests passed.\n");
     else

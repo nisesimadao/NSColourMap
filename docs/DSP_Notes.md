@@ -57,7 +57,7 @@ Character profile's `air` / `shimmer`:
   above 0.45·fs) to avoid aliasing on high grid notes.
 - **Air shelf** — `ColourProcessor` brightens content above ~3.8 kHz.
 
-Character brightness ranking: Hyper > Alien > Glitch > Color > Clean (measured:
+Character brightness ranking: Hyper > Map > Glitch > Color > Clean (measured:
 Hyper at COLOR 200% is ~4.7× brighter above 3.5 kHz than the dry input).
 
 ## COLOR 0-200%
@@ -80,7 +80,7 @@ Hyper at COLOR 200% is ~4.7× brighter above 3.5 kHz than the dry input).
 | `ColourMappingCore` | **Grid oscillators** (synthesise in-key tones) + resonator emphasis + colour + **energy match** + blend + gate (the audible core) |
 | `PseudoFormantTone` | Movable peak biquads + tilt (Formant/Gamma), not a real shifter |
 | `SafetyLimiter` | Soft-knee tanh clip guard |
-| `CharacterModes` | Per-character tuning table (Clean/Color/Hyper/Alien/Glitch) |
+| `CharacterModes` | Per-character tuning table (Clean/Color/Hyper/Map/Glitch) |
 
 ## Grid modes
 
