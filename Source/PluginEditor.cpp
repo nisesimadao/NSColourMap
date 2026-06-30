@@ -9,11 +9,11 @@
 
 namespace
 {
-const juce::Colour background  { 0xff15171a };
-const juce::Colour panel       { 0xff24282d };
-const juce::Colour panelLight  { 0xff30363d };
-const juce::Colour glassEdge   { 0x2effffff };
-const juce::Colour glassShadow { 0x4a000000 };
+const juce::Colour background  { 0xff0b0e11 };
+const juce::Colour panel       { 0xff1b2026 };
+const juce::Colour panelLight  { 0xff2b333d };
+const juce::Colour glassEdge   { 0x3effffff };
+const juce::Colour glassShadow { 0x7a000000 };
 const juce::Colour text        { 0xfff2f5f8 };
 const juce::Colour mutedText   { 0xff9aa4ad };
 const juce::Colour accent      { 0xff38c7f3 }; // TUNED (cyan)
@@ -53,30 +53,86 @@ void setChoice (juce::AudioProcessorValueTreeState& p, const char* id, int index
 
 float midiHz (float note) { return 440.0f * std::pow (2.0f, (note - 69.0f) / 12.0f); }
 
+void drawWallpaperBackdrop (juce::Graphics& g, juce::Rectangle<float> r)
+{
+    juce::ColourGradient base (juce::Colour { 0xff11161bu }, r.getX(), r.getY(),
+                               juce::Colour { 0xff050709u }, r.getX(), r.getBottom(), false);
+    base.addColour (0.44, juce::Colour { 0xff0b1015u });
+    base.addColour (0.78, juce::Colour { 0xff07090cu });
+    g.setGradientFill (base);
+    g.fillRect (r);
+
+    auto radial = [&] (juce::Colour c, float x, float y, float radius, float alpha)
+    {
+        juce::ColourGradient grad (c.withAlpha (alpha), x, y,
+                                   c.withAlpha (0.0f), x + radius, y - radius * 0.25f, true);
+        g.setGradientFill (grad);
+        g.fillEllipse (juce::Rectangle<float> (radius * 2.0f, radius * 2.0f).withCentre ({ x, y }));
+    };
+
+    radial (juce::Colour { 0xff2b5f72u }, r.getX() + r.getWidth() * 0.18f, r.getY() + r.getHeight() * 0.16f, r.getWidth() * 0.42f, 0.20f);
+    radial (juce::Colour { 0xff62432du }, r.getX() + r.getWidth() * 0.84f, r.getY() + r.getHeight() * 0.30f, r.getWidth() * 0.34f, 0.13f);
+    radial (juce::Colour { 0xff5d4d84u }, r.getX() + r.getWidth() * 0.58f, r.getY() + r.getHeight() * 0.88f, r.getWidth() * 0.48f, 0.10f);
+
+    juce::Path ribbon;
+    const float top = r.getY() + r.getHeight() * 0.22f;
+    ribbon.startNewSubPath (r.getX() - 40.0f, top);
+    for (int i = 0; i <= 8; ++i)
+    {
+        const float t = (float) i / 8.0f;
+        const float x = r.getX() + r.getWidth() * t;
+        const float y = top + std::sin (t * juce::MathConstants<float>::twoPi * 1.35f) * 34.0f
+                            + std::sin (t * juce::MathConstants<float>::twoPi * 3.1f) * 10.0f;
+        ribbon.lineTo (x, y);
+    }
+    ribbon.lineTo (r.getRight() + 40.0f, r.getBottom() + 40.0f);
+    ribbon.lineTo (r.getX() - 40.0f, r.getBottom() + 40.0f);
+    ribbon.closeSubPath();
+
+    juce::ColourGradient veil (juce::Colour { 0x145ec8d8u }, r.getX(), top,
+                               juce::Colour { 0x03000000u }, r.getRight(), r.getBottom(), false);
+    g.setGradientFill (veil);
+    g.fillPath (ribbon);
+
+    g.setColour (juce::Colours::white.withAlpha (0.018f));
+    for (int i = 0; i < 10; ++i)
+    {
+        const float y = r.getY() + 64.0f + (float) i * 92.0f;
+        g.drawHorizontalLine (juce::roundToInt (y), r.getX(), r.getRight());
+    }
+
+    g.setColour (juce::Colours::black.withAlpha (0.30f));
+    g.fillRect (r);
+}
+
 void drawLiquidPanel (juce::Graphics& g, juce::Rectangle<float> r, float radius = 8.0f)
 {
-    g.setColour (glassShadow.withAlpha (0.22f));
-    g.fillRoundedRectangle (r.translated (0.0f, 5.0f), radius);
-    g.setColour (juce::Colours::black.withAlpha (0.08f));
-    g.fillRoundedRectangle (r.expanded (1.0f).translated (0.0f, 1.0f), radius + 1.0f);
+    g.setColour (glassShadow.withAlpha (0.34f));
+    g.fillRoundedRectangle (r.translated (0.0f, 9.0f).expanded (-2.0f, 0.0f), radius + 2.0f);
+    g.setColour (juce::Colours::black.withAlpha (0.18f));
+    g.fillRoundedRectangle (r.expanded (2.0f).translated (0.0f, 2.0f), radius + 2.0f);
 
-    juce::ColourGradient material (juce::Colour { 0x18ffffffu }, r.getX(), r.getY(),
-                                   juce::Colour { 0x12000000u }, r.getX(), r.getBottom(), false);
-    material.addColour (0.34, juce::Colour { 0x1a8d99a3u });
-    material.addColour (0.74, juce::Colour { 0x1015171au });
+    juce::ColourGradient material (juce::Colour { 0x2a27313au }, r.getX(), r.getY(),
+                                   juce::Colour { 0x26101419u }, r.getX(), r.getBottom(), false);
+    material.addColour (0.22, juce::Colour { 0x203a4650u });
+    material.addColour (0.58, juce::Colour { 0x16161d23u });
+    material.addColour (1.0,  juce::Colour { 0x3005080bu });
     g.setGradientFill (material);
     g.fillRoundedRectangle (r, radius);
 
     const auto inner = r.reduced (1.0f);
-    juce::ColourGradient depth (juce::Colours::white.withAlpha (0.012f), inner.getX(), inner.getY(),
-                                juce::Colours::black.withAlpha (0.055f), inner.getX(), inner.getBottom(), false);
+    juce::ColourGradient depth (juce::Colours::white.withAlpha (0.040f), inner.getX(), inner.getY(),
+                                juce::Colours::black.withAlpha (0.14f), inner.getX(), inner.getBottom(), false);
     g.setGradientFill (depth);
     g.fillRoundedRectangle (inner, radius - 1.0f);
 
-    g.setColour (juce::Colours::white.withAlpha (0.070f));
+    g.setColour (juce::Colours::white.withAlpha (0.085f));
     g.drawRoundedRectangle (r.reduced (0.5f), radius, 1.0f);
 
-    g.setColour (juce::Colours::black.withAlpha (0.16f));
+    g.setColour (juce::Colours::white.withAlpha (0.060f));
+    g.drawLine (r.getX() + radius, r.getY() + 1.0f, r.getRight() - radius, r.getY() + 1.0f, 1.0f);
+
+    g.setColour (juce::Colours::black.withAlpha (0.22f));
     g.drawRoundedRectangle (r.reduced (1.5f), radius - 1.0f, 1.0f);
 }
 } // namespace
@@ -133,10 +189,14 @@ void NSColourMapLookAndFeel::drawComboBox (juce::Graphics& g, int width, int hei
                                           int, int, int, int, juce::ComboBox&)
 {
     const auto bounds = juce::Rectangle<float> (0.0f, 0.0f, (float) width, (float) height);
-    g.setColour (panelLight);
+    juce::ColourGradient fill (juce::Colour { 0x42394752u }, bounds.getX(), bounds.getY(),
+                               juce::Colour { 0x2b161b21u }, bounds.getX(), bounds.getBottom(), false);
+    g.setGradientFill (fill);
     g.fillRoundedRectangle (bounds, 4.0f);
-    g.setColour (juce::Colour { 0xff3d4450u });
+    g.setColour (juce::Colours::white.withAlpha (0.14f));
     g.drawRoundedRectangle (bounds.reduced (0.5f), 4.0f, 1.0f);
+    g.setColour (juce::Colours::black.withAlpha (0.18f));
+    g.drawRoundedRectangle (bounds.reduced (1.5f), 3.0f, 1.0f);
 
     const float cx = (float) width - 14.0f;
     const float cy = (float) height * 0.5f;
@@ -210,10 +270,16 @@ void NSColourMapLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleBu
     float hov = highlighted ? 1.0f : 0.0f;
     if (auto* at = dynamic_cast<AnimatedToggle*> (&button)) { sel = at->sel; hov = at->hover; }
 
-    const auto base = panelLight.brighter (0.1f * hov);
-    g.setColour (base.overlaidWith (accent.withAlpha (0.22f * sel)));
+    juce::ColourGradient base (juce::Colour { 0x3a34404au }.brighter (0.08f * hov), bounds.getX(), bounds.getY(),
+                               juce::Colour { 0x24101418u }, bounds.getX(), bounds.getBottom(), false);
+    g.setGradientFill (base);
     g.fillRoundedRectangle (bounds, 4.0f);
-    g.setColour (juce::Colour { 0xff46505au }.overlaidWith (accent.withAlpha (sel)));
+    if (sel > 0.001f)
+    {
+        g.setColour (accent.withAlpha (0.14f * sel));
+        g.fillRoundedRectangle (bounds.reduced (1.0f), 3.5f);
+    }
+    g.setColour (juce::Colours::white.withAlpha (0.11f + 0.16f * sel));
     g.drawRoundedRectangle (bounds, 4.0f, 1.0f + 0.8f * sel);
 
     // Tick dot grows + brightens as it turns on.
@@ -254,10 +320,15 @@ float VisualizerView::freqToX (float hz, juce::Rectangle<float> plot) const
 void VisualizerView::paint (juce::Graphics& g)
 {
     const auto bounds = getLocalBounds().toFloat().reduced (1.0f);
-    g.setColour (panel);
+    juce::ColourGradient glass (juce::Colour { 0x382a323au }, bounds.getX(), bounds.getY(),
+                                juce::Colour { 0x24101418u }, bounds.getX(), bounds.getBottom(), false);
+    glass.addColour (0.45, juce::Colour { 0x20202a32u });
+    g.setGradientFill (glass);
     g.fillRoundedRectangle (bounds, 8.0f);
-    g.setColour (juce::Colour { 0xff3a4149u });
+    g.setColour (juce::Colours::white.withAlpha (0.12f));
     g.drawRoundedRectangle (bounds, 8.0f, 1.0f);
+    g.setColour (juce::Colours::black.withAlpha (0.20f));
+    g.drawRoundedRectangle (bounds.reduced (1.5f), 7.0f, 1.0f);
 
     const auto plot = bounds.reduced (14.0f, 14.0f).withTrimmedTop (6.0f);
 
@@ -443,8 +514,12 @@ void KeyboardView::mouseDown (const juce::MouseEvent& e)
 void KeyboardView::paint (juce::Graphics& g)
 {
     const auto bounds = getLocalBounds().toFloat().reduced (1.0f);
-    g.setColour (juce::Colour { 0xff1b1e22u });
+    juce::ColourGradient bed (juce::Colour { 0x322b333bu }, bounds.getX(), bounds.getY(),
+                              juce::Colour { 0x27080b0eu }, bounds.getX(), bounds.getBottom(), false);
+    g.setGradientFill (bed);
     g.fillRoundedRectangle (bounds, 6.0f);
+    g.setColour (juce::Colours::white.withAlpha (0.055f));
+    g.drawRoundedRectangle (bounds.reduced (0.5f), 6.0f, 1.0f);
 
     const auto mask = processor.getTargetMask();
     const auto held = processor.getHeldMask();
@@ -785,21 +860,20 @@ void NSColourMapAudioProcessorEditor::timerCallback()
 
 void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (background);
-
-    juce::ColourGradient bg (juce::Colour { 0xff181c20u }, 0.0f, 0.0f,
-                             juce::Colour { 0xff0e1012u }, 0.0f, (float) getHeight(), false);
-    bg.addColour (0.55, juce::Colour { 0xff14181bu });
-    g.setGradientFill (bg);
-    g.fillAll();
+    drawWallpaperBackdrop (g, getLocalBounds().toFloat());
 
     auto bounds = getLocalBounds();
-    g.setGradientFill (juce::ColourGradient (juce::Colour { 0x6622282eu }, 0.0f, 0.0f,
-                                             juce::Colour { 0x66101214u }, 0.0f, 48.0f, false));
-    g.fillRect (bounds.removeFromTop (48));
-    g.setColour (juce::Colours::black.withAlpha (0.48f));
+    const auto topBar = bounds.removeFromTop (48).toFloat();
+    juce::ColourGradient topGlass (juce::Colour { 0x44252d35u }, 0.0f, topBar.getY(),
+                                   juce::Colour { 0x35101418u }, 0.0f, topBar.getBottom(), false);
+    topGlass.addColour (0.18, juce::Colour { 0x302f3a44u });
+    g.setGradientFill (topGlass);
+    g.fillRect (topBar);
+    g.setColour (juce::Colours::white.withAlpha (0.035f));
+    g.drawHorizontalLine (0, 0.0f, (float) getWidth());
+    g.setColour (juce::Colours::black.withAlpha (0.52f));
     g.drawHorizontalLine (48, 0.0f, (float) getWidth());
-    g.setColour (juce::Colours::white.withAlpha (0.045f));
+    g.setColour (juce::Colours::white.withAlpha (0.055f));
     g.drawHorizontalLine (49, 0.0f, (float) getWidth());
 
     // MIDI LED
@@ -875,7 +949,7 @@ void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
         g.fillRoundedRectangle (badge, 5.0f);
         g.setColour (accent);
         g.setFont (sectionFont());
-        g.drawText ("v0.8.14", badge.toNearestInt(), juce::Justification::centred);
+        g.drawText ("v0.8.15", badge.toNearestInt(), juce::Justification::centred);
         area.removeFromTop (34);
 
         g.setColour (panelLight.brighter (0.1f));
