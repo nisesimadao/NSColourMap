@@ -55,11 +55,11 @@ inline const CharacterProfile& getCharacterProfile (Character c) noexcept
 {
     static constexpr std::array<CharacterProfile, (std::size_t) Character::count> table {{
         //  qBase qColor tailQ drive hiEmph width glide tBias  form  colResp  air  shimmer mapF mapP
-        {   5.0f,  4.0f,  6.0f, 0.05f, 0.20f, 0.25f, 1.20f,  0.10f, 0.4f, 0.85f, 0.20f, 0.15f, 0.00f, 0.10f }, // Clean
-        {   9.0f,  8.0f, 16.0f, 0.28f, 0.55f, 0.45f, 1.00f,  0.00f, 0.7f, 1.00f, 0.45f, 0.40f, 0.00f, 0.20f }, // Color
-        {  14.0f, 14.0f, 28.0f, 0.50f, 0.90f, 0.70f, 0.90f, -0.05f, 1.0f, 1.25f, 0.85f, 0.80f, 0.15f, 0.10f }, // Hyper
-        {  18.0f, 18.0f, 32.0f, 0.34f, 0.62f, 0.52f, 0.55f, -0.10f, 0.9f, 1.22f, 0.55f, 0.38f, 0.78f, 0.82f }, // Map
-        {  11.0f, 10.0f,  9.0f, 0.50f, 0.78f, 0.40f, 0.30f,  0.30f, 0.6f, 1.10f, 0.60f, 0.50f, 0.10f, 0.05f }, // Glitch
+        {   5.5f,  4.5f,  7.0f, 0.06f, 0.24f, 0.30f, 1.20f,  0.10f, 0.4f, 0.90f, 0.24f, 0.18f, 0.00f, 0.10f }, // Clean
+        {   9.5f,  8.8f, 17.5f, 0.31f, 0.60f, 0.50f, 1.00f,  0.00f, 0.7f, 1.06f, 0.52f, 0.46f, 0.00f, 0.20f }, // Color
+        {  14.5f, 13.0f, 27.0f, 0.47f, 0.86f, 0.74f, 0.90f, -0.06f, 1.0f, 1.22f, 0.78f, 0.72f, 0.16f, 0.10f }, // Hyper
+        {  18.0f, 18.5f, 34.0f, 0.36f, 0.66f, 0.58f, 0.55f, -0.10f, 0.9f, 1.24f, 0.62f, 0.45f, 0.82f, 0.78f }, // Map
+        {  12.0f, 11.5f, 11.0f, 0.46f, 0.82f, 0.50f, 0.25f,  0.28f, 0.6f, 1.12f, 0.64f, 0.56f, 0.18f, 0.05f }, // Glitch
     }};
 
     const auto idx = (std::size_t) c;

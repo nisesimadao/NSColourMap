@@ -9,6 +9,23 @@
 #include <cmath>
 #include <memory>
 
+struct ModeRender
+{
+    const char* file;
+    const char* name;
+    int character;
+    float color;
+    float amount;
+    float formant;
+    float gamma;
+    float transient;
+    float gate;
+    float morph;
+    float mix;
+    float melody;
+    float air;
+};
+
 static void setP (juce::AudioProcessorValueTreeState& s, const char* id, float value)
 {
     if (auto* p = s.getParameter (id))
@@ -63,6 +80,59 @@ static bool writeWav (const juce::File& file, const juce::AudioBuffer<float>& b,
     return writer->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
 }
 
+static juce::AudioBuffer<float> renderMode (const juce::AudioBuffer<float>& dry, double sr, const ModeRender& mode)
+{
+    NSColourMapAudioProcessor proc;
+    proc.prepareToPlay (sr, 512);
+    auto& state = proc.getState();
+    nscm::presets::apply (state, nscm::presets::factory[9]); // 10 COLOR 150 Tail base
+    setP (state, nscm::params::mode, 1.0f);                  // MIDI Grid
+    setP (state, nscm::params::midiFreeze, 1.0f);
+    setP (state, nscm::params::character, (float) mode.character);
+    setP (state, nscm::params::color, mode.color);
+    setP (state, nscm::params::amount, mode.amount);
+    setP (state, nscm::params::formant, mode.formant);
+    setP (state, nscm::params::gamma, mode.gamma);
+    setP (state, nscm::params::transient, mode.transient);
+    setP (state, nscm::params::gate, mode.gate);
+    setP (state, nscm::params::morph, mode.morph);
+    setP (state, nscm::params::mix, mode.mix);
+    setP (state, nscm::params::melody, mode.melody);
+    setP (state, nscm::params::air, mode.air);
+
+    juce::AudioBuffer<float> wet;
+    wet.makeCopyOf (dry);
+
+    const int block = 512;
+    int pos = 0;
+    while (pos < dry.getNumSamples())
+    {
+        const int n = juce::jmin (block, dry.getNumSamples() - pos);
+        juce::AudioBuffer<float> b (2, n);
+        for (int ch = 0; ch < 2; ++ch)
+            b.copyFrom (ch, 0, wet, ch, pos, n);
+
+        juce::MidiBuffer midi;
+        if (pos == 0)
+        {
+            midi.addEvent (juce::MidiMessage::noteOn (1, 48, (juce::uint8) 100), 0); // C3
+            midi.addEvent (juce::MidiMessage::noteOn (1, 51, (juce::uint8) 100), 0); // Eb3
+            midi.addEvent (juce::MidiMessage::noteOn (1, 55, (juce::uint8) 100), 0); // G3
+            midi.addEvent (juce::MidiMessage::noteOn (1, 58, (juce::uint8) 100), 0); // Bb3
+        }
+
+        proc.processBlock (b, midi);
+
+        for (int ch = 0; ch < 2; ++ch)
+            wet.copyFrom (ch, pos, b, ch, 0, n);
+        pos += n;
+    }
+
+    applyFade (wet, (int) std::round (0.030 * sr));
+    normalizePeak (wet, 0.86f);
+    return wet;
+}
+
 int main (int argc, char** argv)
 {
     const juce::File source = argc > 1 ? juce::File (argv[1])
@@ -96,49 +166,26 @@ int main (int argc, char** argv)
     applyFade (dry, (int) std::round (0.030 * sr));
     normalizePeak (dry, 0.86f);
 
-    NSColourMapAudioProcessor proc;
-    proc.prepareToPlay (sr, 512);
-    auto& state = proc.getState();
-    nscm::presets::apply (state, nscm::presets::factory[9]); // 10 COLOR 150 Tail
-    setP (state, nscm::params::mode, 1.0f);                  // MIDI Grid
-    setP (state, nscm::params::midiFreeze, 1.0f);
-    setP (state, nscm::params::mix, 0.86f);
-    setP (state, nscm::params::melody, 0.65f);
-    setP (state, nscm::params::air, 0.28f);
-
-    juce::AudioBuffer<float> wet;
-    wet.makeCopyOf (dry);
-
-    const int block = 512;
-    int pos = 0;
-    while (pos < length)
-    {
-        const int n = juce::jmin (block, length - pos);
-        juce::AudioBuffer<float> b (2, n);
-        for (int ch = 0; ch < 2; ++ch)
-            b.copyFrom (ch, 0, wet, ch, pos, n);
-
-        juce::MidiBuffer midi;
-        if (pos == 0)
-        {
-            midi.addEvent (juce::MidiMessage::noteOn (1, 48, (juce::uint8) 100), 0); // C3
-            midi.addEvent (juce::MidiMessage::noteOn (1, 51, (juce::uint8) 100), 0); // Eb3
-            midi.addEvent (juce::MidiMessage::noteOn (1, 55, (juce::uint8) 100), 0); // G3
-            midi.addEvent (juce::MidiMessage::noteOn (1, 58, (juce::uint8) 100), 0); // Bb3
-        }
-
-        proc.processBlock (b, midi);
-
-        for (int ch = 0; ch < 2; ++ch)
-            wet.copyFrom (ch, pos, b, ch, 0, n);
-        pos += n;
-    }
-
-    applyFade (wet, (int) std::round (0.030 * sr));
-    normalizePeak (wet, 0.86f);
+    static constexpr ModeRender modes[] {
+        { "toilet_flush_clean_cmin7.wav", "Clean", 0, 1.05f, 0.76f,  0.0f, 0.08f, 0.62f, 0.06f, 0.26f, 0.78f, 0.22f, 0.12f },
+        { "toilet_flush_color_cmin7.wav", "Color", 1, 1.24f, 0.84f,  2.0f, 0.18f, 0.55f, 0.08f, 0.32f, 0.84f, 0.42f, 0.24f },
+        { "toilet_flush_hyper_cmin7.wav", "Hyper", 2, 1.45f, 0.88f,  5.0f, 0.34f, 0.48f, 0.16f, 0.22f, 0.82f, 0.55f, 0.34f },
+        { "toilet_flush_map_cmin7.wav",   "Map",   3, 1.32f, 0.88f,  3.0f, 0.36f, 0.42f, 0.12f, 0.18f, 0.86f, 0.78f, 0.30f },
+        { "toilet_flush_glitch_cmin7.wav","Glitch",4, 1.28f, 0.86f, 12.0f, 0.26f, 0.95f, 0.36f, 0.18f, 0.82f, 0.36f, 0.26f },
+    };
 
     const bool okDry = writeWav (outDir.getChildFile ("toilet_flush_dry_cc0.wav"), dry, sr);
-    const bool okWet = writeWav (outDir.getChildFile ("toilet_flush_nscolourmap_color150_cmin7.wav"), wet, sr);
+    bool okWet = true;
+    for (const auto& mode : modes)
+    {
+        auto wet = renderMode (dry, sr, mode);
+        const bool ok = writeWav (outDir.getChildFile (mode.file), wet, sr);
+        okWet = okWet && ok;
+        std::printf ("%s=%d file=%s\n", mode.name, (int) ok, mode.file);
+        if (mode.character == 2)
+            okWet = writeWav (outDir.getChildFile ("toilet_flush_nscolourmap_color150_cmin7.wav"), wet, sr) && okWet;
+    }
+
     std::printf ("dry=%d wet=%d source=%s\n", (int) okDry, (int) okWet, source.getFullPathName().toRawUTF8());
     return (okDry && okWet) ? 0 : 1;
 }
