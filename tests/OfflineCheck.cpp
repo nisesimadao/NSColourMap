@@ -124,6 +124,65 @@ int main()
     const bool tonal   = inAvg > tonalityMin * offAvg;
     printf ("\nCHANGED=%d TONAL=%d\n", changed, tonal);
 
+    // ── Out-of-box COLOR 150 Tail defaults must be audible but controlled ─────
+    bool defaultsOk = false;
+    {
+        NSColourMapAudioProcessor dp;
+        dp.prepareToPlay (sr, block);
+
+        std::vector<float> din, dout;
+        din.reserve (N);
+        dout.reserve (N);
+
+        long ph = 0;
+        int d = 0;
+        while (d < N)
+        {
+            const int n = std::min (block, N - d);
+            juce::AudioBuffer<float> b (2, n);
+            for (int i = 0; i < n; ++i)
+            {
+                const double t = (double) (ph++) / sr;
+                const double saw = 2.0 * std::fmod (220.0 * t, 1.0) - 1.0; // A3, off C minor pentatonic
+                const float x = (float) (0.18 * std::sin (2.0 * 3.14159265358979323846 * 55.0 * t)
+                                       + 0.18 * saw);
+                b.getWritePointer (0)[i] = x;
+                b.getWritePointer (1)[i] = x;
+            }
+
+            for (int i = 0; i < n; ++i)
+                din.push_back (b.getReadPointer (0)[i]);
+
+            juce::MidiBuffer mb;
+            dp.processBlock (b, mb);
+
+            for (int i = 0; i < n; ++i)
+                dout.push_back (b.getReadPointer (0)[i]);
+            d += n;
+        }
+
+        const int dh = N / 2;
+        const int dm = N - dh;
+        const float* di = din.data() + dh;
+        const float* doo = dout.data() + dh;
+        const double defInR = rms (di, dm);
+        const double defOutR = rms (doo, dm);
+
+        std::vector<float> ddiff ((size_t) dm);
+        for (int i = 0; i < dm; ++i)
+            ddiff[(size_t) i] = doo[i] - di[i];
+        const double defDiffR = rms (ddiff.data(), dm);
+        const double lowIn = bandRms (di, dm, 55.0, sr);
+        const double lowOut = bandRms (doo, dm, 55.0, sr);
+        const double lowRatio = lowOut / (lowIn + 1e-9);
+        const double loudRatio = defOutR / (defInR + 1e-9);
+        const double diffRatio = defDiffR / (defInR + 1e-9);
+
+        defaultsOk = diffRatio > 0.18 && loudRatio > 0.45 && loudRatio < 2.25 && lowRatio > 0.70 && lowRatio < 1.35;
+        printf ("\n[Defaults COLOR 150 Tail] diff=%.1f%% loud=%.2fx low55=%.2fx OK=%d\n",
+                100.0 * diffRatio, loudRatio, lowRatio, (int) defaultsOk);
+    }
+
     // ── MIDI note-off must stop the colour (Freeze off) ───────────────────────
     bool midiStops = false;
     {
@@ -277,5 +336,5 @@ int main()
         latencyOk = latencyOk && (actualLatency == latAtPrepare);
     }
 
-    return (changed && tonal && midiStops && hqOk && latencyOk) ? 0 : 1;
+    return (changed && tonal && defaultsOk && midiStops && hqOk && latencyOk) ? 0 : 1;
 }
