@@ -16,7 +16,7 @@ Status against the phases in `NSColourMap_Spec.md` (v0.5 §18).
   Amount / Mix. This is the headline fix vs the inaudible v0.3 build.
 - **Phase 5 — Visualizer**: `VisualizerView` shows DRY / TUNED / COLORED, target
   lanes, affected range, protected zones, MIDI markers, transient flash.
-- **Phase 6 — Character modes**: Clean / Color / Hyper / Alien / Glitch
+- **Phase 6 — Character modes**: Clean / Color / Hyper / Map / Glitch
   (`CharacterModes`, tuning over the same DSP).
 - **Phase 7 — Pseudo formant + transient**: `PseudoFormantTone` (Formant + Gamma),
   `TransientDetector` restore.
@@ -25,8 +25,12 @@ Status against the phases in `NSColourMap_Spec.md` (v0.5 §18).
 
 - `tests/DspSmoke.cpp` — `ScaleNoteSet` / `MidiChordState` / `TargetNoteGenerator`
   checks **plus a colour-core audibility test**: broadband noise tuned to A4 must
-  stay as loud as the input and concentrate energy onto 440 Hz (stable SVF-bandpass
-  measurement). Run via `ctest --test-dir build`. AU passes `auval -v aumf Nscm Nscm`.
+  stay as loud as the input and concentrate energy onto 440 Hz; Map mode must
+  pull off-grid input to the target slot with harmonic body (stable SVF-bandpass
+  measurement).
+- `tests/OfflineCheck.cpp` — full processor-chain validation for default audibility,
+  in/off-grid tonality, MIDI note-off release, HQ latency, and HQ tonality. Both
+  checks run via `ctest --test-dir build`. AU passes `auval -v aumf Nscm Nscm`.
 
 ## Partial / placeholder
 
@@ -40,7 +44,7 @@ Status against the phases in `NSColourMap_Spec.md` (v0.5 §18).
   audible fix after the resonator-only build read as "no change."
 - Resonator octave-up "air" resonance, oscillator octave **shimmer** with a slow
   LFO detune, and a `ColourProcessor` air shelf. Character profiles carry
-  `air` / `shimmer`; Hyper/Alien are the brilliant ones.
+  `air` / `shimmer`; Hyper/Map are the brilliant ones.
 - Fixed a real bug: COLOR/Amount/Formant/Gamma/Gate smoothers were never advanced
   (knobs were inert). Verified the full chain with the `NSColourMap_OfflineCheck`
   harness (out/in diff RMS, in/off-scale tonality, HF brightness).
