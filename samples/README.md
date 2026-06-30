@@ -2,6 +2,10 @@
 
 These files are README examples for the NSColourMap colour-mapping sound.
 
+Use raw GitHub URLs for README playback links. Relative `.wav` links open the
+repository blob view on GitHub, which can look like binary text instead of an
+audio player.
+
 - `source/bigsoundbank_0836_urinal_flush_water_cc0.wav`
   - Source: BigSoundBank #0836 "Urinal flush water"
   - URL: https://bigsoundbank.com/urinal-flush-water-s0836.html
