@@ -164,6 +164,90 @@ void drawLiquidPanel (juce::Graphics& g, juce::Rectangle<float> r, float radius 
 }
 } // namespace
 
+OnboardingOverlay::OnboardingOverlay()
+{
+    setInterceptsMouseClicks (true, true);
+
+    startButton.setClickingTogglesState (false);
+    startButton.setButtonText (juce::String::fromUTF8 ("始める"));
+    startButton.setTooltip (juce::String::fromUTF8 ("オンボーディングを閉じてNSColourMapを使い始める"));
+    startButton.onClick = [this] { if (onStart) onStart(); };
+    addAndMakeVisible (startButton);
+
+    skipButton.setClickingTogglesState (false);
+    skipButton.setButtonText (juce::String::fromUTF8 ("スキップ"));
+    skipButton.setTooltip (juce::String::fromUTF8 ("初回オンボーディングをスキップ"));
+    skipButton.onClick = [this] { if (onSkip) onSkip(); };
+    addAndMakeVisible (skipButton);
+}
+
+void OnboardingOverlay::paint (juce::Graphics& g)
+{
+    g.setColour (juce::Colours::black.withAlpha (0.46f));
+    g.fillAll();
+
+    panelBounds = getLocalBounds().withSizeKeepingCentre (
+        juce::jmin (560, getWidth() - 36), juce::jmin (340, getHeight() - 72));
+    drawLiquidPanel (g, panelBounds.toFloat(), 10.0f);
+    auto jp = [] (const char* s) { return juce::String::fromUTF8 (s); };
+
+    auto area = panelBounds.reduced (34, 28);
+    g.setColour (text);
+    g.setFont (juce::Font (juce::FontOptions{}.withName (kSansLight).withHeight (26.0f).withStyle ("Light")));
+    g.drawText (jp ("NSColourMap セットアップ"), area.removeFromTop (38), juce::Justification::centredLeft, true);
+
+    g.setColour (accent.withAlpha (0.70f));
+    g.fillRect (area.removeFromTop (1).withWidth (juce::jmin (210, area.getWidth())).toFloat());
+    area.removeFromTop (24);
+
+    g.setColour (mutedText.withAlpha (0.88f));
+    g.setFont (juce::Font (juce::FontOptions{}.withHeight (14.0f)));
+    g.drawFittedText (jp ("Colour Bass向けの最短スタートです。キー/スケールかMIDIコードを決めて、COLORを回し、低域はLow Cutで守ります。"),
+                      area.removeFromTop (46), juce::Justification::topLeft, 2);
+    area.removeFromTop (10);
+
+    auto step = [&] (const char* head, const char* body)
+    {
+        auto row = area.removeFromTop (44);
+        const auto dot = row.removeFromLeft (24).toFloat().reduced (5.0f);
+        g.setColour (accent.withAlpha (0.30f));
+        g.fillEllipse (dot);
+        g.setColour (accent);
+        g.fillEllipse (dot.reduced (4.0f));
+        row.removeFromLeft (6);
+        g.setColour (text.withAlpha (0.90f));
+        g.setFont (juce::Font (juce::FontOptions{}.withHeight (13.0f).withStyle ("Bold")));
+        g.drawText (jp (head), row.removeFromTop (17), juce::Justification::centredLeft, true);
+        g.setColour (mutedText.withAlpha (0.82f));
+        g.setFont (juce::Font (juce::FontOptions{}.withHeight (12.0f)));
+        g.drawText (jp (body), row, juce::Justification::centredLeft, true);
+    };
+
+    step ("入力", "Scaleは即鳴り、MIDIは送ったコードのグリッドに追従します。");
+    step ("COLOR", "初期値はCOLOR 150 Tail相当。最初から色づいたテイルが聞こえます。");
+    step ("低域保護", "Low Cut以下は色づけから外して、サブの濁りを避けます。");
+}
+
+void OnboardingOverlay::resized()
+{
+    panelBounds = getLocalBounds().withSizeKeepingCentre (
+        juce::jmin (560, getWidth() - 36), juce::jmin (340, getHeight() - 72));
+
+    auto footer = panelBounds.reduced (34, 26).removeFromBottom (34);
+    skipButton.setBounds (footer.removeFromRight (88));
+    footer.removeFromRight (8);
+    startButton.setBounds (footer.removeFromRight (104));
+}
+
+void OnboardingOverlay::stepAnimations()
+{
+    bool repaintNeeded = false;
+    repaintNeeded = stepButtonAnim (startButton) || repaintNeeded;
+    repaintNeeded = stepButtonAnim (skipButton)  || repaintNeeded;
+    if (repaintNeeded)
+        repaint();
+}
+
 // ── LookAndFeel ───────────────────────────────────────────────────────────────
 
 NSColourMapLookAndFeel::NSColourMapLookAndFeel()
@@ -664,6 +748,12 @@ NSColourMapAudioProcessorEditor::NSColourMapAudioProcessorEditor (NSColourMapAud
     configureTab (mainTab, 0);
     configureTab (aboutTab, 1);
 
+    onboardingButton.setClickingTogglesState (false);
+    onboardingButton.setButtonText (juce::String::fromUTF8 ("使い方"));
+    onboardingButton.setTooltip (juce::String::fromUTF8 ("初回オンボーディングをもう一度表示"));
+    onboardingButton.onClick = [this] { setOnboardingVisible (true, false); };
+    addAndMakeVisible (onboardingButton);
+
     // Grid mode + character radios
     for (int i = 0; i < (int) gridModeButtons.size(); ++i)
         configureRadio (gridModeButtons[(size_t) i], nscm::params::mode, i);
@@ -761,8 +851,13 @@ NSColourMapAudioProcessorEditor::NSColourMapAudioProcessorEditor (NSColourMapAud
     uiStyle = juce::jlimit (0, 1, (int) s.state.getProperty ("uiStyle", 0));
     styleButton.setButtonText (uiStyle == 0 ? "Clean" : "Classic");
 
+    onboardingOverlay.onStart = [this] { setOnboardingVisible (false, true); };
+    onboardingOverlay.onSkip  = [this] { setOnboardingVisible (false, true); };
+    addAndMakeVisible (onboardingOverlay);
+
     currentTab = choiceIndex (s, nscm::params::uiTab);
     setCurrentTab (currentTab);
+    setOnboardingVisible (! (bool) s.state.getProperty ("onboardingSeen", false), false);
     startTimerHz (30);
 }
 
@@ -823,6 +918,8 @@ void NSColourMapAudioProcessorEditor::updateMainVisibility()
         l->setVisible (adv);
     sideMuteButton.setVisible (adv);
     multirateButton.setVisible (adv);
+    onboardingButton.setVisible (currentTab == 1 && ! showOnboardingOverlay);
+    onboardingButton.setToggleState (currentTab == 1 && ! showOnboardingOverlay, juce::dontSendNotification);
 }
 
 void NSColourMapAudioProcessorEditor::setCurrentTab (int index)
@@ -858,7 +955,10 @@ void NSColourMapAudioProcessorEditor::timerCallback()
     for (auto& b : gridModeButtons)  animBtn (b);
     for (auto& b : characterButtons) animBtn (b);
     animBtn (mainTab); animBtn (aboutTab); animBtn (styleButton); animBtn (advancedButton);
+    animBtn (onboardingButton);
     animBtn (freezeButton); animBtn (sideMuteButton); animBtn (multirateButton);
+    if (showOnboardingOverlay)
+        onboardingOverlay.stepAnimations();
 
     // Eased "push in" on knobs while held/dragged.
     juce::Slider* knobs[] = { &colorKnob, &amountKnob, &melodyKnob, &formantKnob, &transientKnob, &mixKnob, &outputKnob,
@@ -976,7 +1076,7 @@ void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
         g.fillRoundedRectangle (badge, 5.0f);
         g.setColour (accent);
         g.setFont (sectionFont());
-        g.drawText ("v0.8.16", badge.toNearestInt(), juce::Justification::centred);
+        g.drawText ("v0.8.17", badge.toNearestInt(), juce::Justification::centred);
         area.removeFromTop (34);
 
         g.setColour (panelLight.brighter (0.1f));
@@ -994,6 +1094,9 @@ void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
         g.setFont (juce::Font (juce::FontOptions{}.withHeight (12.0f)));
         g.setColour (mutedText.withAlpha (0.75f));
         g.drawText ("Choose Key/Scale or send MIDI, then turn COLOR.", area.removeFromTop (20), juce::Justification::centred, true);
+        area.removeFromTop (46);
+        g.setColour (text.withAlpha (0.55f));
+        g.drawText (juce::String::fromUTF8 ("初回ガイドはここからもう一度開けます。"), area.removeFromTop (20), juce::Justification::centred, true);
     }
 }
 
@@ -1016,8 +1119,13 @@ void NSColourMapAudioProcessorEditor::resized()
     header.removeFromLeft (6);
     presetBox.setBounds (header.removeFromLeft (juce::jmin (180, header.getWidth())).reduced (0, 8));
 
+    onboardingOverlay.setBounds (getLocalBounds());
+
     if (currentTab != 0)
+    {
+        onboardingButton.setBounds (getWidth() / 2 - 70, 332, 140, 30);
         return;
+    }
 
     area.reduce (14, 12);
     if (uiStyle == 0) layoutClean (area);
@@ -1212,6 +1320,22 @@ void NSColourMapAudioProcessorEditor::setUiStyle (int style)
     uiStyle = juce::jlimit (0, 1, style);
     audioProcessor.getState().state.setProperty ("uiStyle", uiStyle, nullptr);
     styleButton.setButtonText (uiStyle == 0 ? "Clean" : "Classic");
+    resized();
+    repaint();
+}
+
+void NSColourMapAudioProcessorEditor::setOnboardingVisible (bool shouldShow, bool markSeen)
+{
+    showOnboardingOverlay = shouldShow;
+    onboardingOverlay.setVisible (shouldShow);
+
+    if (shouldShow)
+        onboardingOverlay.toFront (false);
+
+    if (markSeen)
+        audioProcessor.getState().state.setProperty ("onboardingSeen", true, nullptr);
+
+    updateMainVisibility();
     resized();
     repaint();
 }

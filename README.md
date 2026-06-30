@@ -1,25 +1,28 @@
 # NSColourMap
 
-**Colour Bass 専用の、無料スペクトラル・カラー変換 VST3 / AU プラグイン（JUCE製）**
+**PITCHMAP::COLORS や Chroma の方向性を、Colour Bass 制作へ寄せた無料 VST3 / AU プラグイン（JUCE製）**
 
-ベース・ノイズ・FM・ワブル・ボーカルチョップ・メタリック素材を、曲のキーや MIDI コードに合わせた**色彩豊かでキー感のあるハーモニック・テクスチャ**へ変換します。
-**PITCHMAP::COLORS** の「ピッチグリッドに音を染める」感覚と、**Xynth Chroma** の「挿して Key/Scale を選んで COLOR を回すだけ」の手軽さを融合することを狙っています。
+ベース・ノイズ・FM・ワブル・ボーカルチョップ・水流/金属系 Foley を、曲のキーや MIDI コードに合わせた**色彩豊かでキー感のあるハーモニック・テクスチャ**へ変換します。
+
+狙いは明確です。**PITCHMAP::COLORS** の「ピッチグリッドへ音を染める」感覚と、**Chroma** の「挿して Key/Scale を選び、COLOR を回すだけで音楽的になる」速さを、Colour Bass 向けにまとめたプラグインです。商用プラグインのUI/ブランド/内部実装をコピーするものではなく、NSColourMap独自の軽いDSPで近い制作体験を作っています。
 
 > ピッチ補正（Auto‑Tune 系）ではありません。スペクトラルな **カラー・マッパー** です。
 
-![NSColourMap UI](images/screenshot_main_v0816.png)
+![NSColourMap UI](images/screenshot_main_v0817.png)
 
 ---
 
 ## 使い方（クイックスタート）
 
+初回起動時は日本語オンボーディングが表示されます。不要なら **スキップ** できます。あとから見直したい場合は **About → 使い方** で再表示できます。
+
 1. 音作りしたいトラックに NSColourMap を挿す
 2. **Key / Scale** を選ぶ（または Grid Mode を **MIDI** にして MIDI コードを送る）
-3. **COLOR** を上げる
-4. **Mode** と **Scale Shift** で色を動かす
+3. 初期値の **COLOR 150 Tail** 相当からそのまま鳴らす
+4. **Character** と **Scale Shift** で色を動かす
 5. **Mix** でなじませ、**Low Cut** で低域を守る
 
-大きな **COLOR** ノブだけで音作りを始められます。その他は微調整用です。
+大きな **COLOR** ノブだけで音作りを始められます。新規インスタンスの初期値はプリセット **10 COLOR 150 Tail** に近く、挿した瞬間から分かりやすく色が付く設定です。
 
 UIはヘッダーの **Clean / Classic** ボタンで切り替えられます（初期値 Clean = SOURCE / CHARACTER / COLOR / TONE にセクション分けした分かりやすい表示。Classic = 従来表示）。各コントロールにはマウスオーバーで日本語の説明が出ます。
 
@@ -27,8 +30,8 @@ UIはヘッダーの **Clean / Classic** ボタンで切り替えられます（
 
 | コントロール | 範囲 | 内容 |
 |---|---|---|
-| **Grid Mode** | Scale / MIDI / Hybrid / UI | ピッチグリッド（ターゲット音）の出どころ |
-| **Character** | Clean / Color / Hyper / Alien / Glitch | 全体のキャラクター（同一DSPの5つのチューニング） |
+| **Grid Mode** | Scale / MIDI / Hybrid / UI / Audio | ピッチグリッド（ターゲット音）の出どころ |
+| **Character** | Clean / Color / Hyper / Map / Glitch | 全体のキャラクター（同一DSPの5つのチューニング） |
 | **COLOR** | 0–200% | メインマクロ。0–100%はドライ→染め、100–200%で共鳴・きらびやかなテイルを追加 |
 | **Amount** | 0–100% | グリッドへ寄せる強さ |
 | **Scale Shift** | −12…+12 半音 | グリッド全体を移動（オートメーション推奨） |
@@ -39,8 +42,18 @@ UIはヘッダーの **Clean / Classic** ボタンで切り替えられます（
 | **Mix / Output** | — | ドライ/ウェット、出力 |
 | **Key / Scale** | — | Scale モードのターゲット（12種、Whole Tone・Chromatic 含む） |
 | **Freeze** | On/Off（初期Off） | Off:ノートを離すと止まる / On:最後のコードを保持 |
-| **Quality** | 0 Latency / High Quality | 0 Latency=オシレーター核（遅延なし） / High Quality=STFTスペクトラル・スナップ（高音質・レイテンシあり） |
+| **Quality** | 0 Latency / Low / Mid / High | 0 Latency=オシレーター核（遅延なし） / High=STFTスペクトラル・スナップ（高音質・レイテンシあり） |
 | **Advanced（ADV）** | — | Gamma・Morph・Gate・Low Cut・High Cut・Side Mute・Multirate |
+
+## Character の目安
+
+| Character | 使いどころ |
+|---|---|
+| **Clean** | 原音の輪郭を残して、キー感だけを足したいとき |
+| **Color** | Chroma 的に素早くColour Bass感を作る標準モード |
+| **Hyper** | COLOR 100%超のテイルとシャリ感を強めたいとき。初期値はこれ |
+| **Map** | PITCHMAP::COLORS 的な、ピッチグリッドへ強く吸着する質感 |
+| **Glitch** | レーザー/フィル/壊れたテイルなど、動きのある派手な素材 |
 
 ## ビジュアライザー
 
@@ -53,8 +66,9 @@ UIはヘッダーの **Clean / Classic** ボタンで切り替えられます（
 
 ## 音作りの設計思想（Colour Bass 向け）
 
-- **低域はクリーンに保護**：Low Cut（〜100–120Hz）以下はモノ・無加工で素通し。色付けは中高域だけに適用
-- **輝きは歪みでなく倍音で**：レゾネーターのオクターブ共鳴＋オシレーターのシマー（緩いLFOで揺れる）＋エア・シェルフで、2–8kHz/10–16kHz をきらめかせる
+- **ピッチグリッドへ染める**：Key/Scale、MIDIコード、UI鍵盤、入力音検出からターゲット音を作り、入力のエネルギーをそのグリッドへ集める
+- **低域はクリーンに保護**：Low Cut（初期値 110Hz）以下はモノ・無加工で素通し。色付けは中高域だけに適用
+- **輝きは歪みでなく倍音で**：レゾネーターのオクターブ共鳴＋オシレーターのシマー＋エア・シェルフで、2–8kHz/10–16kHz をきらめかせる
 - **音割れ対策**：tanh のソフトサチュレーション、約6–8kHz の**ダイナミックなハーシュ抑制**、COLOR を上げても音量が暴れない**オートゲイン**
 - **クリアさ**：Morph と Transient でアタックを保ち、Gate でテイルを締める
 
@@ -104,9 +118,9 @@ ctest --test-dir build        # 楽典 + DSP Smoke + 実プロセッサのフル
 
 ## About
 
-![About](images/screenshot_about_v0816.png)
+![About](images/screenshot_about_v0817.png)
 
-PITCHMAP::COLORS × Chroma を参考にした Colour Bass 用カラーマッパー（v0.5系）。STFT ピッチクラスマッパーは v2 予定。
+PITCHMAP::COLORS × Chroma を参考にした Colour Bass 用カラーマッパー。現在は、Scale/MIDI/Hybrid/UI/Audio のピッチグリッド、5つのCharacter、STFT Quality、モダンなガラスUI、日本語オンボーディングを搭載しています。
 
 ## このプロジェクトについて
 

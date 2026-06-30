@@ -56,12 +56,19 @@ int main (int argc, char** argv)
     proc.prepareToPlay (48000.0, 512);
 
     auto& s = proc.getState();
+    s.state.setProperty ("onboardingSeen", true, nullptr);
     setP (s, nscm::params::mode,      0.0f); // Scale
     setP (s, nscm::params::character, 2.0f); // Hyper (shiny)
-    setP (s, nscm::params::color,     1.10f);
-    setP (s, nscm::params::amount,    0.85f);
+    setP (s, nscm::params::color,     1.50f);
+    setP (s, nscm::params::amount,    0.80f);
+    setP (s, nscm::params::gamma,     0.30f);
+    setP (s, nscm::params::transient, 0.50f);
+    setP (s, nscm::params::gate,      0.40f);
+    setP (s, nscm::params::lowCut,    110.0f);
+    setP (s, nscm::params::highCut,   8000.0f);
     setP (s, nscm::params::key,       0.0f); // C
     setP (s, nscm::params::scale,     7.0f); // Minor Pentatonic
+    setP (s, nscm::params::mix,       0.70f);
     prime (proc);
 
     // Main page
