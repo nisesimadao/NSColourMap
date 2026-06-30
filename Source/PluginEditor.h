@@ -73,12 +73,20 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
     void stepAnimations();
+    void reset();
+    void setTargets (juce::Rectangle<int> source, juce::Rectangle<int> color, juce::Rectangle<int> tone);
 
     std::function<void()> onStart;
     std::function<void()> onSkip;
 
 private:
+    void setStep (int nextStep);
+    juce::Rectangle<int> getTargetBounds() const;
+    juce::Rectangle<int> getCalloutBounds() const;
+
     juce::Rectangle<int> panelBounds;
+    std::array<juce::Rectangle<int>, 3> targets;
+    int stepIndex = 0;
     AnimatedButton startButton { "Start" };
     AnimatedButton skipButton  { "Skip" };
 };
@@ -124,6 +132,7 @@ private:
     void layoutClean (juce::Rectangle<int> area);
     void setUiStyle (int style);
     void setOnboardingVisible (bool shouldShow, bool markSeen);
+    void updateOnboardingTargets();
 
     NSColourMapAudioProcessor& audioProcessor;
     NSColourMapLookAndFeel lnf;

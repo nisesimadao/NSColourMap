@@ -169,9 +169,12 @@ OnboardingOverlay::OnboardingOverlay()
     setInterceptsMouseClicks (true, true);
 
     startButton.setClickingTogglesState (false);
-    startButton.setButtonText (juce::String::fromUTF8 ("始める"));
-    startButton.setTooltip (juce::String::fromUTF8 ("オンボーディングを閉じてNSColourMapを使い始める"));
-    startButton.onClick = [this] { if (onStart) onStart(); };
+    startButton.setTooltip (juce::String::fromUTF8 ("次のステップへ進む"));
+    startButton.onClick = [this]
+    {
+        if (stepIndex < 2) setStep (stepIndex + 1);
+        else if (onStart) onStart();
+    };
     addAndMakeVisible (startButton);
 
     skipButton.setClickingTogglesState (false);
@@ -179,106 +182,85 @@ OnboardingOverlay::OnboardingOverlay()
     skipButton.setTooltip (juce::String::fromUTF8 ("初回オンボーディングをスキップ"));
     skipButton.onClick = [this] { if (onSkip) onSkip(); };
     addAndMakeVisible (skipButton);
+    setStep (0);
 }
 
 void OnboardingOverlay::paint (juce::Graphics& g)
 {
-    g.setColour (juce::Colours::black.withAlpha (0.54f));
-    g.fillAll();
-
-    panelBounds = getLocalBounds().withSizeKeepingCentre (
-        juce::jmin (640, getWidth() - 36), juce::jmin (430, getHeight() - 72));
-    drawLiquidPanel (g, panelBounds.toFloat(), 10.0f);
-    const auto overlayPanel = panelBounds.toFloat().reduced (1.0f);
-    juce::ColourGradient panelFill (juce::Colour { 0xe8172028u }, overlayPanel.getX(), overlayPanel.getY(),
-                                    juce::Colour { 0xea080b10u }, overlayPanel.getX(), overlayPanel.getBottom(), false);
-    panelFill.addColour (0.36, juce::Colour { 0xe2121a20u });
-    g.setGradientFill (panelFill);
-    g.fillRoundedRectangle (overlayPanel, 9.0f);
-    g.setColour (juce::Colours::white.withAlpha (0.070f));
-    g.drawRoundedRectangle (overlayPanel, 9.0f, 1.0f);
     auto jp = [] (const char* s) { return juce::String::fromUTF8 (s); };
 
-    auto area = panelBounds.reduced (34, 30);
-    auto top = area.removeFromTop (118);
+    g.setColour (juce::Colours::black.withAlpha (0.64f));
+    g.fillAll();
 
-    auto badge = top.removeFromTop (24).removeFromLeft (116).toFloat();
-    juce::ColourGradient badgeFill (accent.withAlpha (0.22f), badge.getX(), badge.getY(),
-                                    accent.withAlpha (0.08f), badge.getRight(), badge.getBottom(), false);
-    g.setGradientFill (badgeFill);
-    g.fillRoundedRectangle (badge, 6.0f);
-    g.setColour (accent.withAlpha (0.82f));
-    g.drawRoundedRectangle (badge.reduced (0.5f), 6.0f, 1.0f);
+    const auto target = getTargetBounds().toFloat();
+    const auto highlight = target.expanded (10.0f, 8.0f);
+    const juce::Colour stepCol = stepIndex == 0 ? accent : (stepIndex == 1 ? coloredCol : hotAccent);
+
+    g.setColour (stepCol.withAlpha (0.13f));
+    g.fillRoundedRectangle (highlight.expanded (10.0f), 13.0f);
+    g.setColour (stepCol.withAlpha (0.95f));
+    g.drawRoundedRectangle (highlight, 10.0f, 2.2f);
+    g.setColour (juce::Colours::white.withAlpha (0.16f));
+    g.drawRoundedRectangle (highlight.reduced (2.0f), 8.0f, 1.0f);
+
+    auto callout = getCalloutBounds().toFloat();
+    drawLiquidPanel (g, callout, 10.0f);
+    juce::ColourGradient panelFill (juce::Colour { 0xea172028u }, callout.getX(), callout.getY(),
+                                    juce::Colour { 0xee080b10u }, callout.getX(), callout.getBottom(), false);
+    panelFill.addColour (0.34, juce::Colour { 0xe5131b22u });
+    g.setGradientFill (panelFill);
+    g.fillRoundedRectangle (callout.reduced (1.0f), 9.0f);
+    g.setColour (stepCol.withAlpha (0.20f));
+    g.fillRoundedRectangle (callout.removeFromTop (4.0f), 2.0f);
+
+    auto area = getCalloutBounds().reduced (22, 18);
+    auto top = area.removeFromTop (24);
+
+    const char* titles[] = { "Sourceを決める", "COLORで染める", "Toneでなじませる" };
+    const char* bodies[] = {
+        "Scaleならキー/スケールだけで開始。MIDIなら送ったコードがピッチグリッドになります。",
+        "大きなCOLORが主役です。初期値は150%。共鳴とテイルがすぐ聞こえる状態です。",
+        "Amount/Melody/Mixで前後感を調整。低域が濁る時はADVのLow Cutを上げます。"
+    };
+
+    auto badge = top.removeFromLeft (54).toFloat();
+    g.setColour (stepCol.withAlpha (0.24f));
+    g.fillRoundedRectangle (badge, 5.0f);
+    g.setColour (stepCol);
     g.setFont (juce::Font (juce::FontOptions{}.withHeight (11.0f).withStyle ("Bold")));
-    g.drawText (jp ("初回ガイド"), badge.toNearestInt(), juce::Justification::centred);
-
-    top.removeFromTop (12);
+    g.drawText (juce::String (stepIndex + 1) + "/3", badge.toNearestInt(), juce::Justification::centred);
+    top.removeFromLeft (10);
     g.setColour (text);
-    g.setFont (juce::Font (juce::FontOptions{}.withName (kSansLight).withHeight (26.0f).withStyle ("Light")));
-    g.drawText (jp ("まずはキーを決めて、COLORを回す"), top.removeFromTop (38), juce::Justification::centredLeft, true);
+    g.setFont (juce::Font (juce::FontOptions{}.withHeight (15.0f).withStyle ("Bold")));
+    g.drawText (jp (titles[stepIndex]), top, juce::Justification::centredLeft, true);
 
     g.setColour (mutedText.withAlpha (0.90f));
     g.setFont (juce::Font (juce::FontOptions{}.withHeight (14.0f)));
-    g.drawFittedText (jp ("初期値は COLOR 150 Tail 相当です。Scaleだけでも鳴り、MIDIを送るとコードの色へ追従します。"),
-                      top.removeFromTop (42), juce::Justification::topLeft, 2);
+    area.removeFromTop (12);
+    g.drawFittedText (jp (bodies[stepIndex]), area.removeFromTop (58), juce::Justification::topLeft, 3);
 
-    area.removeFromTop (8);
-    auto cards = area.removeFromTop (150);
-    const int gap = 10;
-    const int cardW = (cards.getWidth() - gap * 2) / 3;
-    auto card = [&] (const char* num, const char* title, const char* body, juce::Colour c)
-    {
-        auto r = cards.removeFromLeft (cardW);
-        cards.removeFromLeft (gap);
-        const auto rf = r.toFloat();
-        juce::ColourGradient fill (juce::Colours::white.withAlpha (0.085f), rf.getX(), rf.getY(),
-                                   c.withAlpha (0.135f), rf.getRight(), rf.getBottom(), false);
-        fill.addColour (0.65, juce::Colours::black.withAlpha (0.28f));
-        g.setGradientFill (fill);
-        g.fillRoundedRectangle (rf, 8.0f);
-        g.setColour (juce::Colours::white.withAlpha (0.075f));
-        g.drawRoundedRectangle (rf.reduced (0.5f), 8.0f, 1.0f);
-
-        auto inner = r.reduced (14, 12);
-        auto n = inner.removeFromTop (28).removeFromLeft (28).toFloat();
-        g.setColour (c.withAlpha (0.24f));
-        g.fillEllipse (n);
-        g.setColour (c);
-        g.setFont (juce::Font (juce::FontOptions{}.withHeight (12.0f).withStyle ("Bold")));
-        g.drawText (num, n.toNearestInt(), juce::Justification::centred);
-        inner.removeFromTop (10);
-
-        g.setColour (text.withAlpha (0.90f));
-        g.setFont (juce::Font (juce::FontOptions{}.withHeight (15.0f).withStyle ("Bold")));
-        g.drawText (jp (title), inner.removeFromTop (22), juce::Justification::centredLeft, true);
-        g.setColour (mutedText.withAlpha (0.82f));
-        g.setFont (juce::Font (juce::FontOptions{}.withHeight (12.0f)));
-        g.drawFittedText (jp (body), inner, juce::Justification::topLeft, 3);
-    };
-
-    card ("1", "Source", "Scaleで即開始。MIDIならコードのグリッドへ追従。", accent);
-    card ("2", "COLOR", "大きなノブが主役。150%付近で共鳴とテイルを追加。", coloredCol);
-    card ("3", "Low Cut", "サブは守る。濁ったら上げて中高域だけ色づけ。", hotAccent);
-
-    area.removeFromTop (16);
-    auto hint = area.removeFromTop (48).toFloat();
+    auto hint = area.removeFromTop (30).toFloat();
     g.setColour (juce::Colours::black.withAlpha (0.26f));
-    g.fillRoundedRectangle (hint, 8.0f);
+    g.fillRoundedRectangle (hint, 6.0f);
     g.setColour (mutedText.withAlpha (0.88f));
-    g.setFont (juce::Font (juce::FontOptions{}.withHeight (12.5f)));
-    g.drawFittedText (jp ("あとから見直す: About 画面の「使い方」。最初は Character = Hyper、Scale = C Minor Pentatonic、Low Cut = 110 Hz です。"),
-                      hint.toNearestInt().reduced (14, 8), juce::Justification::centredLeft, 2);
+    g.setFont (juce::Font (juce::FontOptions{}.withHeight (11.5f)));
+    g.drawText (jp ("あとから見直す: About 画面の「使い方」"), hint.toNearestInt().reduced (12, 0), juce::Justification::centredLeft, true);
 }
 
 void OnboardingOverlay::resized()
 {
-    panelBounds = getLocalBounds().withSizeKeepingCentre (
-        juce::jmin (640, getWidth() - 36), juce::jmin (430, getHeight() - 72));
+    auto callout = getCalloutBounds();
+    if (callout.isEmpty())
+    {
+        startButton.setBounds ({});
+        skipButton.setBounds ({});
+        return;
+    }
 
-    auto footer = panelBounds.reduced (34, 28).removeFromBottom (36);
-    skipButton.setBounds (footer.removeFromRight (96));
+    auto footer = callout.reduced (22, 18).removeFromBottom (32);
+    skipButton.setBounds (footer.removeFromRight (84));
     footer.removeFromRight (10);
-    startButton.setBounds (footer.removeFromRight (132));
+    startButton.setBounds (footer.removeFromRight (108));
 }
 
 void OnboardingOverlay::stepAnimations()
@@ -288,6 +270,52 @@ void OnboardingOverlay::stepAnimations()
     repaintNeeded = stepButtonAnim (skipButton)  || repaintNeeded;
     if (repaintNeeded)
         repaint();
+}
+
+void OnboardingOverlay::reset()
+{
+    setStep (0);
+}
+
+void OnboardingOverlay::setTargets (juce::Rectangle<int> source, juce::Rectangle<int> color, juce::Rectangle<int> tone)
+{
+    targets = { source, color, tone };
+    resized();
+    repaint();
+}
+
+void OnboardingOverlay::setStep (int nextStep)
+{
+    stepIndex = juce::jlimit (0, 2, nextStep);
+    startButton.setButtonText (juce::String::fromUTF8 (stepIndex == 2 ? "始める" : "次へ"));
+    resized();
+    repaint();
+}
+
+juce::Rectangle<int> OnboardingOverlay::getTargetBounds() const
+{
+    auto r = targets[(size_t) stepIndex];
+    if (r.isEmpty())
+        r = getLocalBounds().withSizeKeepingCentre (260, 120);
+    return r;
+}
+
+juce::Rectangle<int> OnboardingOverlay::getCalloutBounds() const
+{
+    if (getWidth() <= 0 || getHeight() <= 0)
+        return {};
+
+    const auto target = getTargetBounds();
+    const int w = juce::jlimit (280, 390, getWidth() - 36);
+    const int h = 190;
+    int x = target.getCentreX() - w / 2;
+    x = juce::jlimit (18, juce::jmax (18, getWidth() - w - 18), x);
+
+    int y = target.getBottom() + 20;
+    if (y + h > getHeight() - 18)
+        y = target.getY() - h - 20;
+    y = juce::jlimit (64, juce::jmax (64, getHeight() - h - 18), y);
+    return { x, y, w, h };
 }
 
 // ── LookAndFeel ───────────────────────────────────────────────────────────────
@@ -793,7 +821,7 @@ NSColourMapAudioProcessorEditor::NSColourMapAudioProcessorEditor (NSColourMapAud
     onboardingButton.setClickingTogglesState (false);
     onboardingButton.setButtonText (juce::String::fromUTF8 ("使い方"));
     onboardingButton.setTooltip (juce::String::fromUTF8 ("初回オンボーディングをもう一度表示"));
-    onboardingButton.onClick = [this] { setOnboardingVisible (true, false); };
+    onboardingButton.onClick = [this] { setCurrentTab (0); setOnboardingVisible (true, false); };
     addAndMakeVisible (onboardingButton);
 
     // Grid mode + character radios
@@ -1118,7 +1146,7 @@ void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
         g.fillRoundedRectangle (badge, 5.0f);
         g.setColour (accent);
         g.setFont (sectionFont());
-        g.drawText ("v0.8.18", badge.toNearestInt(), juce::Justification::centred);
+        g.drawText ("v0.8.19", badge.toNearestInt(), juce::Justification::centred);
         area.removeFromTop (34);
 
         g.setColour (panelLight.brighter (0.1f));
@@ -1172,6 +1200,7 @@ void NSColourMapAudioProcessorEditor::resized()
     area.reduce (14, 12);
     if (uiStyle == 0) layoutClean (area);
     else              layoutClassic (area);
+    updateOnboardingTargets();
 }
 
 void NSColourMapAudioProcessorEditor::layoutClassic (juce::Rectangle<int> area)
@@ -1372,7 +1401,13 @@ void NSColourMapAudioProcessorEditor::setOnboardingVisible (bool shouldShow, boo
     onboardingOverlay.setVisible (shouldShow);
 
     if (shouldShow)
+    {
+        if (currentTab != 0)
+            setCurrentTab (0);
+        onboardingOverlay.reset();
+        updateOnboardingTargets();
         onboardingOverlay.toFront (false);
+    }
 
     if (markSeen)
         audioProcessor.getState().state.setProperty ("onboardingSeen", true, nullptr);
@@ -1380,4 +1415,16 @@ void NSColourMapAudioProcessorEditor::setOnboardingVisible (bool shouldShow, boo
     updateMainVisibility();
     resized();
     repaint();
+}
+
+void NSColourMapAudioProcessorEditor::updateOnboardingTargets()
+{
+    auto source = rSourcePanel.isEmpty() ? keyBox.getBounds().getUnion (scaleBox.getBounds()).expanded (18, 12)
+                                         : rSourcePanel.expanded (4, 3);
+    auto color = colorKnob.getBounds().expanded (18, 16);
+    auto tone = amountKnob.getBounds();
+    for (auto* c : { &melodyKnob, &formantKnob, &transientKnob, &mixKnob, &outputKnob })
+        tone = tone.getUnion (c->getBounds());
+
+    onboardingOverlay.setTargets (source, color, tone.expanded (14, 12));
 }
