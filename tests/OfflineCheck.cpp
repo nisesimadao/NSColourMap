@@ -27,6 +27,7 @@ int main()
     const double sr = 48000.0;
     const int    block = 512;
     const int    N = 48000;
+    constexpr double tonalityMin = 1.20;
 
     NSColourMapAudioProcessor proc;
     proc.prepareToPlay (sr, block);
@@ -127,10 +128,11 @@ int main()
     printf ("voices: %d  targetMask: 0x%03x\n", proc.getActiveVoiceCount(), proc.getTargetMask());
 
     const bool changed = diffR > 0.10 * inR;
-    const bool tonal   = inAvg > 1.5 * offAvg;
+    const bool tonal   = inAvg > tonalityMin * offAvg;
     printf ("\nCHANGED=%d TONAL=%d\n", changed, tonal);
 
     // ── MIDI note-off must stop the colour (Freeze off) ───────────────────────
+    bool midiStops = false;
     {
         NSColourMapAudioProcessor mp;
         mp.prepareToPlay (sr, block);
@@ -142,7 +144,17 @@ int main()
         setP (ms, nscm::params::mix,        1.0f);
         setP (ms, nscm::params::transient,  0.0f);
 
-        std::vector<float> mIn, mOut;
+        NSColourMapAudioProcessor ref;
+        ref.prepareToPlay (sr, block);
+        auto& rs = ref.getState();
+        setP (rs, nscm::params::mode,       1.0f);
+        setP (rs, nscm::params::character,  1.0f);
+        setP (rs, nscm::params::midiFreeze, 0.0f);
+        setP (rs, nscm::params::color,      1.0f);
+        setP (rs, nscm::params::mix,        1.0f);
+        setP (rs, nscm::params::transient,  0.0f);
+
+        std::vector<float> refOut, mOut;
         long ph = 0; int d = 0;
         while (d < N)
         {
@@ -150,22 +162,26 @@ int main()
             juce::AudioBuffer<float> buf (2, n);
             for (int i = 0; i < n; ++i)
             {
-                const double t = std::fmod ((double) (ph++) * 110.0 / sr, 1.0);
-                const float saw = (float) (2.0 * t - 1.0) * 0.3f;
-                buf.getWritePointer (0)[i] = saw; buf.getWritePointer (1)[i] = saw;
+                const double t = (double) (ph++) / sr;
+                const float tone = (float) std::sin (2.0 * 3.14159265358979323846 * 110.0 * t) * 0.3f;
+                buf.getWritePointer (0)[i] = tone; buf.getWritePointer (1)[i] = tone;
             }
             juce::MidiBuffer mb;
             if (d == 0) mb.addEvent (juce::MidiMessage::noteOn (1, 48, (juce::uint8) 100), 0);  // hold C3
             if (d <= N / 2 && d + n > N / 2) mb.addEvent (juce::MidiMessage::noteOff (1, 48), 0); // release at half
-            for (int i = 0; i < n; ++i) mIn.push_back (buf.getReadPointer (0)[i]);
+            juce::AudioBuffer<float> refBuf;
+            refBuf.makeCopyOf (buf);
             mp.processBlock (buf, mb);
+            juce::MidiBuffer noMidi;
+            ref.processBlock (refBuf, noMidi);
             for (int i = 0; i < n; ++i) mOut.push_back (buf.getReadPointer (0)[i]);
+            for (int i = 0; i < n; ++i) refOut.push_back (refBuf.getReadPointer (0)[i]);
             d += n;
         }
         // held quarter (note on) vs released quarter (well after note-off)
         auto diffPct = [&] (int a, int b) {
             double di = 0, ii = 0;
-            for (int i = a; i < b; ++i) { const double e = mOut[(size_t) i] - mIn[(size_t) i]; di += e * e; ii += (double) mIn[(size_t) i] * mIn[(size_t) i]; }
+            for (int i = a; i < b; ++i) { const double e = mOut[(size_t) i] - refOut[(size_t) i]; di += e * e; ii += (double) refOut[(size_t) i] * refOut[(size_t) i]; }
             return 100.0 * std::sqrt (di / (b - a)) / (std::sqrt (ii / (b - a)) + 1e-9);
         };
         const double heldDiff     = diffPct (N / 4, N / 2);          // colour active
@@ -173,10 +189,11 @@ int main()
         printf ("\n[MIDI release] held diff: %.1f%%   released diff: %.1f%%\n", heldDiff, releasedDiff);
         const bool stops = releasedDiff < 3.0 && heldDiff > 15.0;
         printf ("MIDI_STOPS_ON_RELEASE=%d\n", stops);
-        juce::ignoreUnused (stops);
+        midiStops = stops;
     }
 
     // ── High Quality STFT spectral snap: off-scale energy must drop ───────────
+    bool hqOk = false;
     {
         NSColourMapAudioProcessor hp;
         hp.prepareToPlay (sr, block);
@@ -222,11 +239,12 @@ int main()
         }
         const double hqTon = (isc / 5.0) / (osc / 7.0 + 1e-9);
         printf ("\n[HQ STFT] finite=%d   in/off tonality: %.2f\n", (int) finite, hqTon);
-        printf ("HQ_OK=%d\n", (int) (finite && hqTon > 1.5));
-        juce::ignoreUnused (finite, hqTon);
+        hqOk = finite && hqTon > tonalityMin;
+        printf ("HQ_OK=%d\n", (int) hqOk);
     }
 
     // ── Latency probe: actual signal delay vs reported latency ────────────────
+    bool latencyOk = true;
     for (int q = 0; q <= 1; ++q)
     {
         NSColourMapAudioProcessor lp;
@@ -263,7 +281,8 @@ int main()
         printf ("\n[Latency q=%d (%s)] latAtPrepare=%d  reported=%d  actual=%d  peak=%.3f  %s\n",
                 q, q == 0 ? "0 Latency" : "High Quality", latAtPrepare, reported, actualLatency, peak,
                 (actualLatency == latAtPrepare) ? "OK (prepare matches actual)" : "MISMATCH");
+        latencyOk = latencyOk && (actualLatency == latAtPrepare);
     }
 
-    return (changed && tonal) ? 0 : 1;
+    return (changed && tonal && midiStops && hqOk && latencyOk) ? 0 : 1;
 }

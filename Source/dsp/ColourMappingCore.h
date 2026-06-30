@@ -113,7 +113,7 @@ public:
         const float twoPi  = 6.28318530717958648f;
         const float nyq    = 0.45f * sampleRate;
         const float resMix = 0.22f;                           // small resonator emphasis (texture)
-        const float oscMix = 1.15f + 0.45f * s.colorBoost;    // oscillator grid weight (dominant)
+        const float oscMix = 1.45f + 0.55f * s.colorBoost;    // oscillator grid weight (dominant)
         // Shimmer: a detuned octave-up partial that slowly beats -> living sparkle.
         const float shimAmt = clampf ((prof.shimmer * (0.35f + 0.65f * s.color01) + s.colorBoost * 0.4f)
                                       * (1.0f - 0.25f * mapFocus) * (1.0f - 0.45f * mapPurity), 0.0f, 1.3f);
@@ -297,7 +297,8 @@ public:
         colour.process (tuned, numChannels, numSamples, cs);
 
         // ── Energy match + morph + blend + gate + loudness makeup ─────────────
-        const float intensity = clampf (s.color01 * prof.colorResponse * (0.55f + 0.45f * s.amount), 0.0f, 1.0f);
+        const float intensity = clampf (s.color01 * prof.colorResponse * (0.70f + 0.30f * s.amount)
+                                        * (1.0f + 0.18f * s.amount), 0.0f, 1.0f);
         const float boostAdd  = s.colorBoost * 0.6f;
         const float gateDepth = s.gate;
         const float morph     = s.morph;

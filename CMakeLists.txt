@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(NSColourMap VERSION 0.8.10 LANGUAGES C CXX)
+project(NSColourMap VERSION 0.8.11 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -99,6 +99,7 @@ target_link_libraries(NSColourMap_OfflineCheck PRIVATE
     juce::juce_dsp
     juce::juce_gui_basics
     juce::juce_recommended_config_flags)
+add_test(NAME OfflineCheck COMMAND NSColourMap_OfflineCheck)
 
 # ── Screenshot generator (renders the editor to PNGs for the README) ─────────
 add_executable(NSColourMap_Screenshot
