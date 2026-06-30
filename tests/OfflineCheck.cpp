@@ -38,16 +38,9 @@ int main()
     setP (s, nscm::params::key,       0.0f);   // C
     setP (s, nscm::params::scale,     7.0f);   // Minor Pentatonic
     setP (s, nscm::params::transient, 0.0f);   // isolate the colour effect for the test
-
-    // Choose config via argv: default (out-of-box) vs maxed.
-    const bool maxed = false;  // measure OUT-OF-BOX defaults (the user's first impression)
-    if (maxed)
-    {
-        setP (s, nscm::params::color,  2.0f);
-        setP (s, nscm::params::amount, 1.0f);
-        setP (s, nscm::params::mix,    1.0f);
-    }
-    // else: leave COLOR=65%, Amount=70%, Mix=65% (spec defaults).
+    setP (s, nscm::params::color,     1.0f);
+    setP (s, nscm::params::amount,    1.0f);
+    setP (s, nscm::params::mix,       1.0f);
 
     // Harmonic input: sawtooth at A2 = 110 Hz (A is OFF the C-minor-pentatonic
     // scale, so a working colour mapper must move energy onto C/Eb/F/G/Bb).

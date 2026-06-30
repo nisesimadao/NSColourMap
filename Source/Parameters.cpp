@@ -15,15 +15,15 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> p;
 
     p.push_back (std::make_unique<APC> (juce::ParameterID { mode, 1 }, "Grid Mode", modeNames(), 0));        // Scale
-    p.push_back (std::make_unique<APC> (juce::ParameterID { character, 1 }, "Character", characterNames(), 1)); // Color
+    p.push_back (std::make_unique<APC> (juce::ParameterID { character, 1 }, "Character", characterNames(), 2)); // Hyper
 
-    // Big COLOR — 0..200%. Default high enough that the effect is obvious out of the box.
+    // Big COLOR — 0..200%. Default mirrors "10 COLOR 150 Tail" for an audible first load.
     p.push_back (std::make_unique<APF> (juce::ParameterID { color, 1 }, "COLOR",
-        juce::NormalisableRange<float> { 0.0f, 2.0f, 0.001f }, 0.90f,
+        juce::NormalisableRange<float> { 0.0f, 2.0f, 0.001f }, 1.50f,
         Attr().withLabel ("%").withStringFromValueFunction (percentString)));
 
     p.push_back (std::make_unique<APF> (juce::ParameterID { amount, 1 }, "Amount",
-        juce::NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.85f,
+        juce::NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.80f,
         Attr().withLabel ("%").withStringFromValueFunction (percentString)));
 
     p.push_back (std::make_unique<APF> (juce::ParameterID { scaleShift, 1 }, "Scale Shift",
@@ -33,11 +33,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         juce::NormalisableRange<float> { -24.0f, 24.0f, 0.1f }, 0.0f, Attr().withLabel ("st")));
 
     p.push_back (std::make_unique<APF> (juce::ParameterID { gamma, 1 }, "Gamma",
-        juce::NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.0f,
+        juce::NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.30f,
         Attr().withLabel ("%").withStringFromValueFunction (percentString)));
 
     p.push_back (std::make_unique<APF> (juce::ParameterID { transient, 1 }, "Transient",
-        juce::NormalisableRange<float> { 0.0f, 1.5f, 0.001f }, 0.65f,
+        juce::NormalisableRange<float> { 0.0f, 1.5f, 0.001f }, 0.50f,
         Attr().withLabel ("%").withStringFromValueFunction (percentString)));
 
     p.push_back (std::make_unique<APF> (juce::ParameterID { morph, 1 }, "Morph",
@@ -45,7 +45,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         Attr().withLabel ("%").withStringFromValueFunction (percentString)));
 
     p.push_back (std::make_unique<APF> (juce::ParameterID { gate, 1 }, "Gate",
-        juce::NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.0f,
+        juce::NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.40f,
         Attr().withLabel ("%").withStringFromValueFunction (percentString)));
 
     p.push_back (std::make_unique<APF> (juce::ParameterID { air, 1 }, "Air",
@@ -53,11 +53,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
         Attr().withLabel ("%").withStringFromValueFunction (percentString)));
 
     p.push_back (std::make_unique<APF> (juce::ParameterID { lowCut, 1 }, "Low Cut",
-        juce::NormalisableRange<float> { 40.0f, 500.0f, 1.0f, 0.5f }, 100.0f,
+        juce::NormalisableRange<float> { 40.0f, 500.0f, 1.0f, 0.5f }, 110.0f,
         Attr().withStringFromValueFunction (hzString)));
 
     p.push_back (std::make_unique<APF> (juce::ParameterID { highCut, 1 }, "High Cut",
-        juce::NormalisableRange<float> { 1000.0f, 16000.0f, 1.0f, 0.4f }, 6000.0f,
+        juce::NormalisableRange<float> { 1000.0f, 16000.0f, 1.0f, 0.4f }, 8000.0f,
         Attr().withStringFromValueFunction (hzString)));
 
     p.push_back (std::make_unique<APB> (juce::ParameterID { sideMute, 1 }, "Side Mute", false));
@@ -67,7 +67,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout()
     p.push_back (std::make_unique<APC> (juce::ParameterID { quality, 1 }, "Quality", qualityNames(), 0)); // 0 Latency
 
     p.push_back (std::make_unique<APF> (juce::ParameterID { mix, 1 }, "Mix",
-        juce::NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.78f,
+        juce::NormalisableRange<float> { 0.0f, 1.0f, 0.001f }, 0.70f,
         Attr().withLabel ("%").withStringFromValueFunction (percentString)));
 
     p.push_back (std::make_unique<APF> (juce::ParameterID { output, 1 }, "Output",

@@ -3,6 +3,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <array>
+#include <functional>
 #include <memory>
 
 #include "PluginProcessor.h"
@@ -64,6 +65,24 @@ struct AnimatedToggle final : public juce::ToggleButton
     float sel = 0.0f, hover = 0.0f;
 };
 
+class OnboardingOverlay final : public juce::Component
+{
+public:
+    OnboardingOverlay();
+
+    void paint (juce::Graphics&) override;
+    void resized() override;
+    void stepAnimations();
+
+    std::function<void()> onStart;
+    std::function<void()> onSkip;
+
+private:
+    juce::Rectangle<int> panelBounds;
+    AnimatedButton startButton { "Start" };
+    AnimatedButton skipButton  { "Skip" };
+};
+
 // Advances a button's sel/hover toward its target with easing; returns true if it
 // changed enough to need a repaint.
 template <typename B>
@@ -104,6 +123,7 @@ private:
     void layoutClassic (juce::Rectangle<int> area);
     void layoutClean (juce::Rectangle<int> area);
     void setUiStyle (int style);
+    void setOnboardingVisible (bool shouldShow, bool markSeen);
 
     NSColourMapAudioProcessor& audioProcessor;
     NSColourMapLookAndFeel lnf;
@@ -119,6 +139,7 @@ private:
     AnimatedButton   styleButton { "Clean" };
     AnimatedButton   mainTab  { "Main" };
     AnimatedButton   aboutTab { "About" };
+    AnimatedButton   onboardingButton { "Onboarding" };
 
     // Key strip
     std::array<AnimatedButton, 5> gridModeButtons {
@@ -149,12 +170,15 @@ private:
 
     int   currentTab = 0;
     bool  showAdvanced = false;
+    bool  showOnboardingOverlay = false;
     int   uiStyle = 0; // 0 = Clean (default), 1 = Classic
     float glowLevel = 0.0f; // eased COLOR glow, driven by live colour energy
 
     // Clean-layout section rectangles (drawn as labelled panels in paint()).
     juce::Rectangle<int> rSourcePanel, rEnginePanel,
                          rTitleSource, rTitleChar, rTitleColor, rTitleTone;
+
+    OnboardingOverlay onboardingOverlay;
 
     std::unique_ptr<SliderAttachment>   colorAtt, amountAtt, formantAtt, transientAtt, mixAtt, outputAtt,
                                         melodyAtt, scaleShiftAtt, gammaAtt, morphAtt, gateAtt, airAtt,
