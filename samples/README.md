@@ -8,9 +8,16 @@ These files are README examples for the NSColourMap colour-mapping sound.
   - License: CC0 / public domain equivalent
 - `toilet_flush_dry_cc0.wav`
   - Short normalized excerpt from the source file.
+- `toilet_flush_clean_cmin7.wav`
+- `toilet_flush_color_cmin7.wav`
+- `toilet_flush_hyper_cmin7.wav`
+- `toilet_flush_map_cmin7.wav`
+- `toilet_flush_glitch_cmin7.wav`
+  - The same excerpt rendered through NSColourMap with preset `10 COLOR 150 Tail`
+    as a base, MIDI Grid, and a held Cmin7 chord (`C Eb G Bb`).
 - `toilet_flush_nscolourmap_color150_cmin7.wav`
-  - The same excerpt rendered through NSColourMap with preset `10 COLOR 150 Tail`,
-    MIDI Grid, and a held Cmin7 chord (`C Eb G Bb`).
+  - Compatibility copy of the Hyper render used by the original before/after
+    README example.
 
 Regenerate:
 

@@ -52,13 +52,13 @@ public:
         // Keep this stage gentle: heavy saturation on the summed resonator output
         // creates intermodulation mush that masks the pitch-grid tones. Per-voice
         // drive in the ResonatorBank does the musical harmonic work instead.
-        const float shelfGain = 1.0f + s.highEmph * 0.8f;                    // high shelf boost
-        const float satDrive  = 1.0f + s.drive * 1.2f;                       // light saturation
+        const float shelfGain = 1.0f + s.highEmph * 0.72f;                   // high shelf boost
+        const float satDrive  = 1.0f + s.drive * 1.35f;                      // light saturation
         const float satComp   = 1.0f / std::sqrt (satDrive);
-        const float density   = s.colour * 0.06f;                           // subtle even-harmonic add
-        const float airGain   = s.air * 2.2f;                               // air shelf boost (gentler)
+        const float density   = s.colour * (0.045f + 0.035f * s.drive);      // subtle even-harmonic add
+        const float airGain   = s.air * 2.0f;                               // air shelf boost (gentler)
         const float sizAmt    = s.sizzle;                                   // smooth high crispness
-        constexpr float harshThresh = 0.20f;                                // de-harsh band ceiling
+        constexpr float harshThresh = 0.18f;                                // de-harsh band ceiling
 
         for (int ch = 0; ch < numChannels && ch < 2; ++ch)
         {
@@ -83,7 +83,7 @@ public:
                 x = std::tanh (x * satDrive) * satComp;
 
                 // Subtle harmonic density (asymmetric -> even harmonics).
-                x += density * (x * x - 0.5f * x);
+                x += density * (x * x - 0.45f * x);
 
                 // Air shelf: brighten content above ~3.8 kHz for sparkle.
                 if (airGain > 0.0f)
