@@ -7,7 +7,7 @@
 
 > ピッチ補正（Auto‑Tune 系）ではありません。スペクトラルな **カラー・マッパー** です。
 
-![NSColourMap UI](images/screenshot_main.png)
+![NSColourMap UI](images/screenshot_main_v0816.png)
 
 ---
 
@@ -104,7 +104,7 @@ ctest --test-dir build        # 楽典 + DSP Smoke + 実プロセッサのフル
 
 ## About
 
-![About](images/screenshot_about.png)
+![About](images/screenshot_about_v0816.png)
 
 PITCHMAP::COLORS × Chroma を参考にした Colour Bass 用カラーマッパー（v0.5系）。STFT ピッチクラスマッパーは v2 予定。
 
