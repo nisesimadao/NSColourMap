@@ -48,16 +48,18 @@ static bool writeWav (const juce::File& file, const juce::AudioBuffer<float>& b,
     file.deleteFile();
 
     juce::WavAudioFormat format;
-    std::unique_ptr<juce::FileOutputStream> stream (file.createOutputStream());
+    std::unique_ptr<juce::OutputStream> stream (file.createOutputStream());
     if (stream == nullptr)
         return false;
 
     std::unique_ptr<juce::AudioFormatWriter> writer (
-        format.createWriterFor (stream.get(), sr, (unsigned int) b.getNumChannels(), 16, {}, 0));
+        format.createWriterFor (stream, juce::AudioFormatWriterOptions {}
+                                    .withSampleRate (sr)
+                                    .withNumChannels (b.getNumChannels())
+                                    .withBitsPerSample (16)));
     if (writer == nullptr)
         return false;
 
-    stream.release();
     return writer->writeFromAudioSampleBuffer (b, 0, b.getNumSamples());
 }
 

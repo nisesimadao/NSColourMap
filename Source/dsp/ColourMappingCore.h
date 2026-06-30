@@ -127,6 +127,7 @@ public:
         const float mapBodyCoeff = std::exp (-1.0f / (0.090f * sampleRate));
         const float mapSecond = 0.16f + 0.11f * s.color01 + 0.08f * s.colorBoost;
         const float mapThird = 0.055f + 0.050f * s.color01 + 0.045f * s.colorBoost;
+        const float mapFourth = 0.030f + 0.045f * s.color01 + 0.050f * s.colorBoost;
         const float mapEdge = clampf (0.06f + 0.10f * s.colorBoost + 0.05f * (1.0f - mapPurity), 0.0f, 0.18f);
 
         std::array<float, kMaxVoices> inc {};
@@ -226,12 +227,16 @@ public:
                     const float contour = clampf (mapEnv[idx] / body, 0.70f, 1.85f);
                     const float sourceShape = clampf (bp / body, -1.0f, 1.0f);
                     const float shapedP = p + 0.020f * mapPurity * sourceShape;
+                    const float vowel = 0.5f + 0.5f * std::sin (1.7f * lfoPhase + 0.018f * mapDstHz[idx] + 0.72f * sourceShape);
+                    const float hollow = 1.0f - vowel;
                     float y = std::sin (shapedP);
                     if (2.0f * mapDstHz[idx] < nyq)
-                        y += mapSecond * std::sin (2.0f * shapedP + 0.45f + 0.12f * sourceShape);
+                        y += mapSecond * (0.72f + 0.62f * vowel) * std::sin (2.0f * shapedP + 0.45f + 0.12f * sourceShape);
                     if (3.0f * mapDstHz[idx] < nyq)
-                        y += mapThird * std::sin (3.0f * shapedP + 1.05f);
-                    y += mapEdge * std::tanh (2.2f * sourceShape) * std::sin (shapedP + 1.2f);
+                        y += mapThird * (0.82f + 0.52f * hollow) * std::sin (3.0f * shapedP + 1.05f);
+                    if (4.0f * mapDstHz[idx] < nyq)
+                        y += mapFourth * (0.55f + 0.90f * vowel) * std::sin (4.0f * shapedP + 1.75f);
+                    y += mapEdge * (0.75f + 0.55f * contour) * std::tanh (2.2f * sourceShape) * std::sin (shapedP + 1.2f);
                     const float w = mapEnv[idx] * contour * shifted * wild;
                     mapOsc += w * y;
                     mapPower += w * w;
