@@ -5,6 +5,7 @@
 #include "PluginEditor.h"
 
 #include <juce_gui_basics/juce_gui_basics.h>
+#include <cstdlib>
 #include <random>
 
 static void setP (juce::AudioProcessorValueTreeState& s, const char* id, float value)
@@ -56,7 +57,8 @@ int main (int argc, char** argv)
     proc.prepareToPlay (48000.0, 512);
 
     auto& s = proc.getState();
-    s.state.setProperty ("onboardingSeen", true, nullptr);
+    const bool renderOnboarding = std::getenv ("NSCM_SCREENSHOT_ONBOARDING") != nullptr;
+    s.state.setProperty ("onboardingSeen", ! renderOnboarding, nullptr);
     setP (s, nscm::params::mode,      0.0f); // Scale
     setP (s, nscm::params::character, 2.0f); // Hyper (shiny)
     setP (s, nscm::params::color,     1.50f);
@@ -77,7 +79,11 @@ int main (int argc, char** argv)
         ed->setSize (820, 680);
         juce::MessageManager::getInstance()->runDispatchLoopUntil (350);
         savePng (*ed, outDir.getChildFile ("screenshot_main.png"));
+        if (renderOnboarding)
+            savePng (*ed, outDir.getChildFile ("screenshot_onboarding.png"));
     }
+
+    s.state.setProperty ("onboardingSeen", true, nullptr);
 
     // About page
     setP (s, nscm::params::uiTab, 1.0f);
