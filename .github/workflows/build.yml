@@ -67,6 +67,11 @@ jobs:
         if: runner.os == 'Windows'
         run: cmake --build build --target NSColourMap_VST3 --config Release
 
+      - name: Run full-chain tests
+        run: |
+          cmake --build build --target NSColourMap_SmokeTest NSColourMap_OfflineCheck --config Release
+          ctest --test-dir build --build-config Release --output-on-failure
+
       # ── Package ────────────────────────────────────────────────────────────
       - name: Package (macOS)
         if: runner.os == 'macOS'
