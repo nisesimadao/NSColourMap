@@ -60,6 +60,10 @@ target_compile_definitions(NSColourMap
         JUCE_VST3_CAN_REPLACE_VST2=0
 )
 
+if(MSVC)
+    target_compile_options(NSColourMap PRIVATE /utf-8)
+endif()
+
 target_link_libraries(NSColourMap
     PRIVATE
         juce::juce_audio_processors
@@ -93,6 +97,9 @@ target_compile_definitions(NSColourMap_OfflineCheck PRIVATE
     JUCE_STANDALONE_APPLICATION=1
     JucePlugin_Name="NSColourMap"
     JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+if(MSVC)
+    target_compile_options(NSColourMap_OfflineCheck PRIVATE /utf-8)
+endif()
 target_link_libraries(NSColourMap_OfflineCheck PRIVATE
     juce::juce_audio_utils
     juce::juce_audio_processors
@@ -113,6 +120,9 @@ target_compile_definitions(NSColourMap_Screenshot PRIVATE
     JUCE_MODAL_LOOPS_PERMITTED=1
     JucePlugin_Name="NSColourMap"
     JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+if(MSVC)
+    target_compile_options(NSColourMap_Screenshot PRIVATE /utf-8)
+endif()
 target_link_libraries(NSColourMap_Screenshot PRIVATE
     juce::juce_audio_utils
     juce::juce_audio_processors
@@ -132,6 +142,9 @@ target_compile_definitions(NSColourMap_RenderAudioSamples PRIVATE
     JUCE_STANDALONE_APPLICATION=1
     JucePlugin_Name="NSColourMap"
     JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+if(MSVC)
+    target_compile_options(NSColourMap_RenderAudioSamples PRIVATE /utf-8)
+endif()
 target_link_libraries(NSColourMap_RenderAudioSamples PRIVATE
     juce::juce_audio_formats
     juce::juce_audio_utils
