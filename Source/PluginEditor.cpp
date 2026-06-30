@@ -55,10 +55,10 @@ float midiHz (float note) { return 440.0f * std::pow (2.0f, (note - 69.0f) / 12.
 
 void drawWallpaperBackdrop (juce::Graphics& g, juce::Rectangle<float> r)
 {
-    juce::ColourGradient base (juce::Colour { 0xff11161bu }, r.getX(), r.getY(),
-                               juce::Colour { 0xff050709u }, r.getX(), r.getBottom(), false);
-    base.addColour (0.44, juce::Colour { 0xff0b1015u });
-    base.addColour (0.78, juce::Colour { 0xff07090cu });
+    juce::ColourGradient base (juce::Colour { 0xff121820u }, r.getX(), r.getY(),
+                               juce::Colour { 0xff050609u }, r.getX(), r.getBottom(), false);
+    base.addColour (0.36, juce::Colour { 0xff0b1118u });
+    base.addColour (0.72, juce::Colour { 0xff07080du });
     g.setGradientFill (base);
     g.fillRect (r);
 
@@ -70,12 +70,39 @@ void drawWallpaperBackdrop (juce::Graphics& g, juce::Rectangle<float> r)
         g.fillEllipse (juce::Rectangle<float> (radius * 2.0f, radius * 2.0f).withCentre ({ x, y }));
     };
 
-    radial (juce::Colour { 0xff2b5f72u }, r.getX() + r.getWidth() * 0.18f, r.getY() + r.getHeight() * 0.16f, r.getWidth() * 0.42f, 0.20f);
-    radial (juce::Colour { 0xff62432du }, r.getX() + r.getWidth() * 0.84f, r.getY() + r.getHeight() * 0.30f, r.getWidth() * 0.34f, 0.13f);
-    radial (juce::Colour { 0xff5d4d84u }, r.getX() + r.getWidth() * 0.58f, r.getY() + r.getHeight() * 0.88f, r.getWidth() * 0.48f, 0.10f);
+    radial (juce::Colour { 0xff1d7c8du }, r.getX() + r.getWidth() * 0.18f, r.getY() + r.getHeight() * 0.18f, r.getWidth() * 0.46f, 0.34f);
+    radial (juce::Colour { 0xff735140u }, r.getX() + r.getWidth() * 0.86f, r.getY() + r.getHeight() * 0.29f, r.getWidth() * 0.36f, 0.20f);
+    radial (juce::Colour { 0xff6747a2u }, r.getX() + r.getWidth() * 0.58f, r.getY() + r.getHeight() * 0.82f, r.getWidth() * 0.50f, 0.16f);
+
+    auto fillRibbon = [&] (float yBase, float ampA, float ampB, juce::Colour left, juce::Colour right, float alpha)
+    {
+        juce::Path p;
+        p.startNewSubPath (r.getX() - 80.0f, yBase);
+        for (int i = 0; i <= 14; ++i)
+        {
+            const float t = (float) i / 14.0f;
+            const float x = r.getX() + r.getWidth() * t;
+            const float y = yBase + std::sin ((t + 0.08f) * juce::MathConstants<float>::twoPi * 0.92f) * ampA
+                                  + std::sin ((t + 0.27f) * juce::MathConstants<float>::twoPi * 2.10f) * ampB;
+            p.lineTo (x, y);
+        }
+        p.lineTo (r.getRight() + 80.0f, r.getBottom() + 70.0f);
+        p.lineTo (r.getX() - 80.0f, r.getBottom() + 70.0f);
+        p.closeSubPath();
+
+        juce::ColourGradient grad (left.withAlpha (alpha), r.getX(), yBase,
+                                   right.withAlpha (alpha * 0.42f), r.getRight(), r.getBottom(), false);
+        g.setGradientFill (grad);
+        g.fillPath (p);
+    };
+
+    fillRibbon (r.getY() + r.getHeight() * 0.27f, 56.0f, 18.0f,
+                juce::Colour { 0xff1a6d78u }, juce::Colour { 0xff2b1636u }, 0.18f);
+    fillRibbon (r.getY() + r.getHeight() * 0.47f, 42.0f, 14.0f,
+                juce::Colour { 0xff0a3038u }, juce::Colour { 0xff7c4732u }, 0.11f);
 
     juce::Path ribbon;
-    const float top = r.getY() + r.getHeight() * 0.22f;
+    const float top = r.getY() + r.getHeight() * 0.20f;
     ribbon.startNewSubPath (r.getX() - 40.0f, top);
     for (int i = 0; i <= 8; ++i)
     {
@@ -89,19 +116,19 @@ void drawWallpaperBackdrop (juce::Graphics& g, juce::Rectangle<float> r)
     ribbon.lineTo (r.getX() - 40.0f, r.getBottom() + 40.0f);
     ribbon.closeSubPath();
 
-    juce::ColourGradient veil (juce::Colour { 0x145ec8d8u }, r.getX(), top,
-                               juce::Colour { 0x03000000u }, r.getRight(), r.getBottom(), false);
+    juce::ColourGradient veil (juce::Colour { 0x225ec8d8u }, r.getX(), top,
+                               juce::Colour { 0x051a1026u }, r.getRight(), r.getBottom(), false);
     g.setGradientFill (veil);
     g.fillPath (ribbon);
 
-    g.setColour (juce::Colours::white.withAlpha (0.018f));
+    g.setColour (juce::Colours::white.withAlpha (0.022f));
     for (int i = 0; i < 10; ++i)
     {
         const float y = r.getY() + 64.0f + (float) i * 92.0f;
         g.drawHorizontalLine (juce::roundToInt (y), r.getX(), r.getRight());
     }
 
-    g.setColour (juce::Colours::black.withAlpha (0.30f));
+    g.setColour (juce::Colours::black.withAlpha (0.22f));
     g.fillRect (r);
 }
 
@@ -949,7 +976,7 @@ void NSColourMapAudioProcessorEditor::paint (juce::Graphics& g)
         g.fillRoundedRectangle (badge, 5.0f);
         g.setColour (accent);
         g.setFont (sectionFont());
-        g.drawText ("v0.8.15", badge.toNearestInt(), juce::Justification::centred);
+        g.drawText ("v0.8.16", badge.toNearestInt(), juce::Justification::centred);
         area.removeFromTop (34);
 
         g.setColour (panelLight.brighter (0.1f));
