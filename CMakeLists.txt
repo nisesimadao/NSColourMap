@@ -120,3 +120,22 @@ target_link_libraries(NSColourMap_Screenshot PRIVATE
     juce::juce_gui_basics
     juce::juce_graphics
     juce::juce_recommended_config_flags)
+
+# ── README audio examples ───────────────────────────────────────────────────
+add_executable(NSColourMap_RenderAudioSamples
+    tools/RenderAudioSamples.cpp
+    Source/PluginProcessor.cpp
+    Source/PluginEditor.cpp
+    Source/Parameters.cpp)
+target_include_directories(NSColourMap_RenderAudioSamples PRIVATE Source)
+target_compile_definitions(NSColourMap_RenderAudioSamples PRIVATE
+    JUCE_STANDALONE_APPLICATION=1
+    JucePlugin_Name="NSColourMap"
+    JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
+target_link_libraries(NSColourMap_RenderAudioSamples PRIVATE
+    juce::juce_audio_formats
+    juce::juce_audio_utils
+    juce::juce_audio_processors
+    juce::juce_dsp
+    juce::juce_gui_basics
+    juce::juce_recommended_config_flags)
