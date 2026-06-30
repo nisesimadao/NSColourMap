@@ -306,8 +306,9 @@ int main()
             std::vector<float> outHalf (outL.begin() + N / 2, outL.end());
             const double eC = bandRms (outHalf, midiNoteToHz (60.0f), sr);
             const double eC2 = bandRms (outHalf, midiNoteToHz (72.0f), sr);
+            const double eC3 = bandRms (outHalf, midiNoteToHz (84.0f), sr);
             const double eCs = bandRms (outHalf, midiNoteToHz (61.0f), sr);
-            return (eC > eCs * 1.8) && (eC2 > eC * 0.06);
+            return (eC > eCs * 1.8) && (eC2 > eC * 0.06) && (eC3 > eC * 0.012);
         };
 
         CHECK (runMapBody());
