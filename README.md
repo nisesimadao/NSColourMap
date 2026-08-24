@@ -8,7 +8,7 @@
 
 > ピッチ補正（Auto‑Tune 系）ではありません。スペクトラルな **カラー・マッパー** です。
 
-![NSColourMap UI](images/screenshot_main_v0819.png)
+![NSColourMap UI](images/screenshot_main.png)
 
 ---
 
@@ -118,7 +118,7 @@ ctest --test-dir build        # 楽典 + DSP Smoke + 実プロセッサのフル
 
 ## About
 
-![About](images/screenshot_about_v0819.png)
+![About](images/screenshot_about.png)
 
 PITCHMAP::COLORS × Chroma を参考にした Colour Bass 用カラーマッパー。現在は、Scale/MIDI/Hybrid/UI/Audio のピッチグリッド、5つのCharacter、STFT Quality、モダンなガラスUI、日本語オンボーディングを搭載しています。
 
@@ -128,4 +128,6 @@ NSColourMap は **vibe coding（AIとの対話で要件・実装・調整を進�
 
 ## ライセンス
 
-MIT · by nisesimadao
+AGPL-3.0-or-later · by nisesimadao
+
+JUCE 8 は AGPLv3 / 商用ライセンスのデュアルライセンスです。この公開版は AGPLv3 側で配布します。第三者素材については [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) を参照してください。

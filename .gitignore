@@ -10,3 +10,8 @@ DerivedData/
 *.o
 *.d
 build-*.log
+
+AGENTS.md
+.claude/
+.codex/
+.agents/
