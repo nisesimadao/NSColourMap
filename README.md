@@ -1,88 +1,91 @@
 # NSColourMap
 
-**PITCHMAP::COLORS や Chroma の方向性を、Colour Bass 制作へ寄せた無料 VST3 / AU プラグイン（JUCE製）**
+NSColourMap は、Colour Bass 制作向けの無料 VST3 / AU オーディオエフェクトです。
+入力音を Key / Scale、MIDI コード、UI、または入力音から作ったピッチグリッドへ寄せ、倍音・共鳴・疑似フォルマントを加えてハーモニックなテクスチャへ変換します。
 
-ベース・ノイズ・FM・ワブル・ボーカルチョップ・水流/金属系 Foley を、曲のキーや MIDI コードに合わせた**色彩豊かでキー感のあるハーモニック・テクスチャ**へ変換します。
+PITCHMAP::COLORS や Chroma のワークフローを参考にしていますが、UI、ブランド、内部実装を複製するものではありません。
+DSP は NSColourMap 独自の実装です。
 
-狙いは明確です。**PITCHMAP::COLORS** の「ピッチグリッドへ音を染める」感覚と、**Chroma** の「挿して Key/Scale を選び、COLOR を回すだけで音楽的になる」速さを、Colour Bass 向けにまとめたプラグインです。商用プラグインのUI/ブランド/内部実装をコピーするものではなく、NSColourMap独自の軽いDSPで近い制作体験を作っています。
-
-> ピッチ補正（Auto‑Tune 系）ではありません。スペクトラルな **カラー・マッパー** です。
+> Auto-Tune 系のピッチ補正ではありません。
+> ピッチグリッドを使ってスペクトルと倍音構成を変えるエフェクトです。
 
 ![NSColourMap UI](images/screenshot_main.png)
 
----
+## クイックスタート
 
-## 使い方（クイックスタート）
+初回起動時は日本語オンボーディングを表示します。
+スキップした場合も **About → 使い方** から再表示できます。
 
-初回起動時は日本語オンボーディングが表示されます。不要なら **スキップ** できます。あとから見直したい場合は **About → 使い方** で再表示できます。
+1. 処理したいトラックへ NSColourMap を挿します。
+2. **Key / Scale** を選ぶか、**Grid Mode → MIDI** にしてコード MIDI を送ります。
+3. **COLOR** を調整して処理量と共鳴テイルを変えます。
+4. **Character** と **Scale Shift** で音色とピッチグリッドを調整します。
+5. **Mix** で原音との比率を決め、必要に応じて **Low Cut** で低域を処理対象から外します。
 
-1. 音作りしたいトラックに NSColourMap を挿す
-2. **Key / Scale** を選ぶ（または Grid Mode を **MIDI** にして MIDI コードを送る）
-3. 初期値の **COLOR 150 Tail** 相当からそのまま鳴らす
-4. **Character** と **Scale Shift** で色を動かす
-5. **Mix** でなじませ、**Low Cut** で低域を守る
-
-大きな **COLOR** ノブだけで音作りを始められます。新規インスタンスの初期値はプリセット **10 COLOR 150 Tail** に近く、挿した瞬間から分かりやすく色が付く設定です。
-
-UIはヘッダーの **Clean / Classic** ボタンで切り替えられます（初期値 Clean = SOURCE / CHARACTER / COLOR / TONE にセクション分けした分かりやすい表示。Classic = 従来表示）。各コントロールにはマウスオーバーで日本語の説明が出ます。
+新規インスタンスはプリセット **10 COLOR 150 Tail** に近い初期値です。
+UI は **Clean / Classic** で切り替えられます。
+Clean は SOURCE / CHARACTER / COLOR / TONE に分けた表示、Classic は従来レイアウトです。
 
 ## 主なコントロール
 
 | コントロール | 範囲 | 内容 |
 |---|---|---|
-| **Grid Mode** | Scale / MIDI / Hybrid / UI / Audio | ピッチグリッド（ターゲット音）の出どころ |
-| **Character** | Clean / Color / Hyper / Map / Glitch | 全体のキャラクター（同一DSPの5つのチューニング） |
-| **COLOR** | 0–200% | メインマクロ。0–100%はドライ→染め、100–200%で共鳴・きらびやかなテイルを追加 |
-| **Amount** | 0–100% | グリッドへ寄せる強さ |
-| **Scale Shift** | −12…+12 半音 | グリッド全体を移動（オートメーション推奨） |
-| **Formant** | −24…+24 半音 | 母音/サイズ感（疑似フォルマント） |
-| **Gamma** | 0–100% | フォルマントの山谷を誇張し、ゆっくり母音を揺らす（有機的な動き） |
-| **Transient** | 0–150% | アタックをドライのまま通す |
-| **Morph** | 0–100% | ドライの輪郭/ダイナミクスをウェットに転写（トランジェント保持・テイル制御） |
-| **Mix / Output** | — | ドライ/ウェット、出力 |
-| **Key / Scale** | — | Scale モードのターゲット（12種、Whole Tone・Chromatic 含む） |
-| **Freeze** | On/Off（初期Off） | Off:ノートを離すと止まる / On:最後のコードを保持 |
-| **Quality** | 0 Latency / Low / Mid / High | 0 Latency=オシレーター核（遅延なし） / High=STFTスペクトラル・スナップ（高音質・レイテンシあり） |
-| **Advanced（ADV）** | — | Gamma・Morph・Gate・Low Cut・High Cut・Side Mute・Multirate |
+| **Grid Mode** | Scale / MIDI / Hybrid / UI / Audio | ターゲットとなるピッチグリッドの生成元 |
+| **Character** | Clean / Color / Hyper / Map / Glitch | 同じ DSP を異なる係数で動かす 5 つのプロファイル |
+| **COLOR** | 0–200% | 0–100% で dry → tuned の比率を上げ、100–200% で共鳴・テイルを追加 |
+| **Amount** | 0–100% | ピッチグリッドへ寄せる強さ |
+| **Scale Shift** | −12…+12 半音 | グリッド全体の移調 |
+| **Formant** | −24…+24 半音 | 疑似フォルマントの中心位置 |
+| **Gamma** | 0–100% | フォルマント形状と低速モーフの深さ |
+| **Transient** | 0–150% | 原音のアタックを戻す量 |
+| **Morph** | 0–100% | dry の振幅輪郭を wet へ反映する量 |
+| **Mix / Output** | — | dry / wet と出力レベル |
+| **Key / Scale** | — | Scale mode のターゲット |
+| **Freeze** | On / Off | MIDI note を離した後も最後のコードを保持するか |
+| **Quality** | 0 Latency / Low / Mid / High | 処理方式と品質 / latency の選択 |
+| **Advanced（ADV）** | — | Gamma / Morph / Gate / Low Cut / High Cut / Side Mute / Multirate |
 
-## Character の目安
+## Character
 
-| Character | 使いどころ |
+| Character | 用途 |
 |---|---|
-| **Clean** | 原音の輪郭を残して、キー感だけを足したいとき |
-| **Color** | Chroma 的に素早くColour Bass感を作る標準モード |
-| **Hyper** | COLOR 100%超のテイルとシャリ感を強めたいとき。初期値はこれ |
-| **Map** | PITCHMAP::COLORS 的な、ピッチグリッドへ強く吸着する質感 |
-| **Glitch** | レーザー/フィル/壊れたテイルなど、動きのある派手な素材 |
+| **Clean** | 原音の輪郭を残しながらピッチグリッド成分を加える |
+| **Color** | 標準的なバランス |
+| **Hyper** | COLOR 100% 以上で共鳴テイルと高域成分を強める |
+| **Map** | ピッチグリッドへの寄せ方を強める |
+| **Glitch** | レーザー、フィル、揺れるテイルなどの変化を大きくする |
 
 ## ビジュアライザー
 
-中央の表示でカラーエンジンの動きが分かります。
+中央表示は、処理中の成分を次の区分で示します。
 
-- **DRY**（紫）— 原音のエネルギー
-- **TUNED**（シアン）— ピッチグリッド上に染まった成分
-- **COLORED**（アンバー）— COLOR 100%超で増える共鳴/テイル
-- **PROTECTED**（グレー）— 処理対象外（Low Cut / High Cut の外。サブはモノでクリーンに保護）
+- **DRY**（紫）：原音のエネルギー。
+- **TUNED**（シアン）：ピッチグリッドへ寄せた成分。
+- **COLORED**（アンバー）：COLOR 100% 以上で追加される共鳴 / テイル。
+- **PROTECTED**（グレー）：Low Cut / High Cut の外側にあり、処理対象から外した成分。
 
-## 音作りの設計思想（Colour Bass 向け）
+## DSP の方針
 
-- **ピッチグリッドへ染める**：Key/Scale、MIDIコード、UI鍵盤、入力音検出からターゲット音を作り、入力のエネルギーをそのグリッドへ集める
-- **低域はクリーンに保護**：Low Cut（初期値 110Hz）以下はモノ・無加工で素通し。色付けは中高域だけに適用
-- **輝きは歪みでなく倍音で**：レゾネーターのオクターブ共鳴＋オシレーターのシマー＋エア・シェルフで、2–8kHz/10–16kHz をきらめかせる
-- **音割れ対策**：tanh のソフトサチュレーション、約6–8kHz の**ダイナミックなハーシュ抑制**、COLOR を上げても音量が暴れない**オートゲイン**
-- **クリアさ**：Morph と Transient でアタックを保ち、Gate でテイルを締める
+- **ピッチグリッド**：Key / Scale、MIDI コード、UI、入力音検出からターゲット note set を作ります。
+- **低域保護**：既定では Low Cut 110 Hz 以下を主な colour 処理から外します。
+- **高域成分**：resonator、octave-up partial、air shelf を組み合わせます。
+- **レベル制御**：soft saturation、high-band の動的抑制、energy matching を使います。
+- **トランジェント保持**：Morph / Transient / Gate でアタックとテイルのバランスを調整します。
+
+実装の詳細と測定条件は [`docs/DSP_Notes.md`](docs/DSP_Notes.md) を参照してください。
 
 ## MIDI ルーティング
 
-NSColourMap は MIDI を**受信する**オーディオエフェクトです。ヘッダーの **MIDI LED** が点かない場合は MIDI が届いていないので、**Grid Mode → Scale**（MIDI不要）で使うか、ルーティングを見直してください。詳細は [`docs/Routing_Guide.md`](docs/Routing_Guide.md)。
+NSColourMap は MIDI 入力を受け取れるオーディオエフェクトです。
+MIDI LED が点灯しない場合は、MIDI がプラグインへ届いていません。
+MIDI が不要な **Grid Mode → Scale** でも利用できます。
 
-効かないときは：1) MIDI LED 確認 → 2) MIDI Grid モード → 3) Freeze On → 4) まず Scale モード → 5) COLOR と Mix を上げる
-
----
+DAW ごとのルーティング例は [`docs/Routing_Guide.md`](docs/Routing_Guide.md) を参照してください。
 
 ## サンプル音声
 
-トイレ/水流系FoleyをColour Bass素材として使い、NSColourMapでCmin7のグリッドへ寄せた例です。元音源はBigSoundBankのCC0サンプルを使用しています。各モードは同じ素材/コードでレンダーしているので、キャラクター差を聴き比べできます。
+CC0 の水流 Foley を Cmin7 の MIDI grid へ寄せた比較用サンプルです。
+各 Character は同じ入力とコードを使ってレンダリングしています。
 
 | Mode | Audio |
 | --- | --- |
@@ -93,25 +96,24 @@ NSColourMap は MIDI を**受信する**オーディオエフェクトです。�
 | Map | [Play / Download WAV](https://raw.githubusercontent.com/nisesimadao/NSColourMap/main/samples/toilet_flush_map_cmin7.wav) |
 | Glitch | [Play / Download WAV](https://raw.githubusercontent.com/nisesimadao/NSColourMap/main/samples/toilet_flush_glitch_cmin7.wav) |
 
-- Source: [BigSoundBank #0836 Urinal flush water](https://bigsoundbank.com/urinal-flush-water-s0836.html), CC0 / public domain equivalent.
-- Process: preset `10 COLOR 150 Tail` base, MIDI Grid, held Cmin7 (`C Eb G Bb`), short 8 s excerpt.
-- GitHub README note: the links use `raw.githubusercontent.com` so GitHub does not open the WAV as a repository blob/binary view.
+- Source: [BigSoundBank #0836 Urinal flush water](https://bigsoundbank.com/urinal-flush-water-s0836.html), CC0 / public-domain equivalent.
+- Process: preset `10 COLOR 150 Tail` base, MIDI Grid, held Cmin7 (`C Eb G Bb`), 8-second excerpt.
 - Re-render: `cmake --build build --target NSColourMap_RenderAudioSamples && ./build/NSColourMap_RenderAudioSamples`.
-
----
 
 ## ダウンロード
 
-[Releases](https://github.com/nisesimadao/NSColourMap/releases) に macOS（VST3 / AU）・Windows（VST3）のビルドを置いています（タグ push 時に GitHub Actions が自動ビルド・添付）。
+[Releases](https://github.com/nisesimadao/NSColourMap/releases) で macOS（VST3 / AU）と Windows（VST3）のビルドを配布します。
+タグ push 時に GitHub Actions がビルドして Release へ添付します。
 
 ## ビルド
 
-CMake ≥ 3.22 と C++17 コンパイラが必要です。JUCE 8.0.14 は自動取得されます。
+CMake 3.22 以上と C++17 compiler が必要です。
+JUCE 8.0.14 は configure 時に取得します。
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --config Release
-ctest --test-dir build        # 楽典 + DSP Smoke + 実プロセッサのフルチェーン確認
+ctest --test-dir build
 ```
 
 成果物：`build/NSColourMap_artefacts/Release/{VST3,AU}/`
@@ -120,14 +122,14 @@ ctest --test-dir build        # 楽典 + DSP Smoke + 実プロセッサのフル
 
 ![About](images/screenshot_about.png)
 
-PITCHMAP::COLORS × Chroma を参考にした Colour Bass 用カラーマッパー。現在は、Scale/MIDI/Hybrid/UI/Audio のピッチグリッド、5つのCharacter、STFT Quality、モダンなガラスUI、日本語オンボーディングを搭載しています。
+現在は Scale / MIDI / Hybrid / UI / Audio の grid mode、5 つの Character、STFT を使う High Quality mode、日本語オンボーディングを実装しています。
 
-## このプロジェクトについて
-
-NSColourMap は **vibe coding（AIとの対話で要件・実装・調整を進めるスタイル）で作られたプロジェクト**です。
+NSColourMap は、AI を含む対話型の開発支援を使いながら実装・調整したプロジェクトです。
 
 ## ライセンス
 
 AGPL-3.0-or-later · by nisesimadao
 
-JUCE 8 は AGPLv3 / 商用ライセンスのデュアルライセンスです。この公開版は AGPLv3 側で配布します。第三者素材については [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) を参照してください。
+JUCE 8 は AGPLv3 / 商用ライセンスのデュアルライセンスです。
+この公開版は AGPLv3 側で配布します。
+第三者素材については [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) を参照してください。
