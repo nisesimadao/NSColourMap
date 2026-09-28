@@ -1,12 +1,11 @@
 # DSP Notes (v0.5)
 
-All DSP lives in `Source/dsp/` as header-only, UI-free, audio-thread-safe units.
-The music-theory and colour-core classes carry no JUCE dependency so they are
-tested standalone in `tests/DspSmoke.cpp`.
+The DSP implementation lives under `Source/dsp/` as header-only, UI-independent units designed for audio-thread use.
+The music-theory and colour-core classes do not depend on JUCE, which allows them to be tested independently in `tests/DspSmoke.cpp`.
 
 ## Signal flow (spec §12.1)
 
-```
+```text
 Audio In
  → copy to dryBuf
  → AffectedRange (LR4 highpass @ lowCut + lowpass @ highCut) → activeBuf
@@ -14,132 +13,116 @@ Audio In
        active → TransientDetector → 0..1 envelope
  → ColourMappingCore(tunedBuf, dryActive):
        ResonatorBank (grid-tuned SVF) → ColourProcessor (drive/emphasis/width)
-       → ENERGY MATCH tuned level to input → blend dry→tuned by amount·COLOR
-       → + colourful tail for COLOR>100% → Gate ducks tail when input is quiet
+       → energy-match tuned level to input → blend dry→tuned by amount·COLOR
+       → add tail for COLOR > 100% → Gate ducks tail when input is quiet
  → PseudoFormantTone (Formant + Gamma)
  → optional Side Mute (collapse processed band to mono)
- → per-sample: transient restore, then  out = dry + Mix·(processed − active)
+ → per-sample transient restore, then out = dry + Mix·(processed − active)
  → Output gain → SafetyLimiter → Audio Out
 ```
 
-`out = dry + Mix·(processed − active)` means everything outside [lowCut, highCut]
-(including the protected sub) passes through untouched, and Mix only controls how
-much of the *transformation* is applied.
+`out = dry + Mix·(processed − active)` leaves content outside `[lowCut, highCut]` unchanged, including the protected sub range.
+`Mix` therefore controls the amount of the transformation rather than scaling the full signal path.
 
-## Why it is audible (two key fixes)
+## Audibility fixes
 
-1. **Grid oscillator layer.** A resonator bank can only *emphasise frequencies
-   already present* in the input, so on off-key or inharmonic material it does
-   almost nothing — which is why earlier builds sounded like "nothing changed."
-   `ColourMappingCore` now drives a bank of **sine+harmonic oscillators tuned to
-   the grid notes** with the input's amplitude envelope, *synthesising* an in-key
-   chord from any source (noise, off-key bass, chops). The resonator bank remains
-   as a small emphasis/texture layer. The oscillator layer is what makes the
-   colour obvious and genuinely tonal.
-2. **Energy match.** The combined tuned signal is scaled (per-channel envelope
-   followers, smoothed gain, slight +presence) to track the input's loudness, so
-   the colour is always as loud as the dry.
+Two changes made the colour layer more consistent across source material.
 
-Earlier there was also a real bug: the COLOR / Amount / Formant / Gamma / Gate
-smoothers were read with `getCurrentValue()` but never advanced, so those knobs
-were frozen at their load-time values. They are now advanced with `skip()` each
-block.
+1. **Grid oscillator layer.**
+   A resonator bank mainly emphasizes frequencies already present in the input.
+   Earlier builds therefore produced little change on strongly off-grid or inharmonic material.
+   `ColourMappingCore` now drives sine-plus-harmonic oscillators tuned to the target grid and modulates them from the input amplitude envelope.
+   The resonator bank remains as an additional emphasis and texture layer.
+2. **Energy matching.**
+   Per-channel envelope followers estimate the input and tuned levels.
+   A smoothed gain stage keeps the tuned layer near the input's working level so changes in COLOR are easier to compare without large level jumps.
 
-## Shine / brilliance
+An earlier implementation bug also prevented the COLOR, Amount, Formant, Gamma, and Gate smoothers from advancing.
+They were read with `getCurrentValue()` without stepping the smoother.
+The current implementation advances them with `skip()` each block.
 
-Brightness comes from three cooperating layers, all scaled by COLOR and the
-Character profile's `air` / `shimmer`:
-- **Resonator air** — each `ResonatorVoice` adds an octave-up, higher-Q bandpass
-  (`leftHi/rightHi`) with a few cents of L/R detune → bell-like sparkle.
-- **Oscillator shimmer** — each grid oscillator adds a detuned octave-up partial
-  whose detune is modulated by a slow ~0.6 Hz LFO → a living, beating shimmer.
-  Harmonics and the shimmer partial are band-limited per voice (skip any partial
-  above 0.45·fs) to avoid aliasing on high grid notes.
-- **Air shelf** — `ColourProcessor` brightens content above ~3.8 kHz.
+## High-frequency layers
 
-Character brightness ranking: Hyper > Map > Glitch > Color > Clean (measured:
-Hyper at COLOR 200% is ~4.7× brighter above 3.5 kHz than the dry input).
+Brightness comes from three components that are scaled by COLOR and the Character profile's `air` / `shimmer` values.
 
-## COLOR 0-200%
+- **Resonator air**: each `ResonatorVoice` adds an octave-up, higher-Q band-pass component with slight left/right detuning.
+- **Oscillator shimmer**: each grid oscillator adds a detuned octave-up partial whose detune is modulated by a slow ~0.6 Hz LFO.
+  Harmonics above `0.45 * fs` are skipped to limit aliasing.
+- **Air shelf**: `ColourProcessor` adds high-frequency emphasis above approximately 3.8 kHz.
 
-- `color01 = min(COLOR, 1)` blends dry → tuned (Chroma "add colour" range).
-- `colorBoost = max(COLOR − 1, 0)` raises resonator Q (tail), saturation drive and
-  adds an extra resonance layer (PITCHMAP-style "more electronic" range).
+In the current measurement setup, the Character brightness ordering is Hyper > Map > Glitch > Color > Clean.
+For the test signal used during development, Hyper at COLOR 200% measured about 4.7× more energy above 3.5 kHz than the dry input.
+This is a test result, not a fixed response guarantee for arbitrary material.
+
+## COLOR 0–200%
+
+- `color01 = min(COLOR, 1)` controls the dry-to-tuned blend over the 0–100% range.
+- `colorBoost = max(COLOR − 1, 0)` raises resonator Q, saturation drive, and the additional resonance layer over the 100–200% range.
 
 ## Classes
 
 | Class | Role |
 |---|---|
-| `ScaleNoteSet` | Key + scale → 12-bit pitch-class mask (12 scales incl. Whole Tone, Chromatic) |
-| `MidiChordState` | MIDI note tracking, Freeze last chord |
-| `TargetNoteGenerator` | Mask → octave-expanded target frequencies (≤32), Scale Shift |
-| `AffectedRange` | LR4 band split for the processed range / protected remainder |
-| `TransientDetector` | Fast/slow envelope difference → transient envelope |
-| `ResonatorBank` / `SvfResonator` | TPT SVF bandpass voices, glide, drive, stereo detune |
-| `ColourProcessor` | High-shelf emphasis, saturation, harmonic density, M/S width |
-| `ColourMappingCore` | **Grid oscillators** (synthesise in-key tones) + resonator emphasis + colour + **energy match** + blend + gate (the audible core) |
-| `PseudoFormantTone` | Movable peak biquads + tilt (Formant/Gamma), not a real shifter |
-| `SafetyLimiter` | Soft-knee tanh clip guard |
-| `CharacterModes` | Per-character tuning table (Clean/Color/Hyper/Map/Glitch) |
+| `ScaleNoteSet` | Key + scale → 12-bit pitch-class mask, including Whole Tone and Chromatic |
+| `MidiChordState` | MIDI note tracking and Freeze state |
+| `TargetNoteGenerator` | Expands pitch classes across octaves, up to 32 targets, and applies Scale Shift |
+| `AffectedRange` | LR4 split for the processed frequency range and protected remainder |
+| `TransientDetector` | Fast/slow envelope difference used as the transient envelope |
+| `ResonatorBank` / `SvfResonator` | TPT SVF band-pass voices with glide, drive, and stereo detune |
+| `ColourProcessor` | High-shelf emphasis, saturation, harmonic density, and M/S width |
+| `ColourMappingCore` | Grid oscillators, resonator emphasis, energy matching, dry/tuned blend, tail, and gate |
+| `PseudoFormantTone` | Movable peak filters and tilt; this is a formant-like shaper, not a true formant shifter |
+| `SafetyLimiter` | Soft-knee tanh output guard |
+| `CharacterModes` | Per-character tuning table for Clean / Color / Hyper / Map / Glitch |
 
 ## Grid modes
 
-- **Scale** — pitch grid = `ScaleNoteSet(key, scale)`.
-- **MIDI** — grid = held chord pitch classes (Freeze keeps the last chord).
-- **Hybrid** — union of scale ∪ MIDI (stay in key, emphasise played notes).
-- **UI** — MVP uses the scale grid (UI keyboard editing is v1+).
+- **Scale**: grid = `ScaleNoteSet(key, scale)`.
+- **MIDI**: grid = held MIDI pitch classes; Freeze keeps the most recent chord.
+- **Hybrid**: union of Scale and MIDI pitch classes.
+- **UI**: currently uses the scale grid; direct UI-keyboard editing is planned for a later version.
 
-In MIDI mode, releasing all notes (with Freeze off, the default) clears the grid;
-a `colourGain` smoother (~80 ms) fades the colour out and the processor then
-idles (passes the dry signal through) so nothing keeps sounding. Scale/Hybrid
-modes always have a grid, so they stay active by design.
+In MIDI mode, releasing all notes with Freeze disabled clears the grid.
+A `colourGain` smoother of about 80 ms fades the colour layer out before the processor returns to dry passthrough.
+Scale and Hybrid modes always retain a grid by design.
 
-## Gamma, Morph, and clean brilliance (COLORS × Chroma voicing)
+## Gamma, Morph, and de-harsh processing
 
-Informed by colour-bass sound-design research (resonant/vocal shimmer kept clean
-and transient-safe):
-- **Gamma** drives a real vowel-formant shaper (`PseudoFormantTone`): 3 peaks at
-  vowel formants (ah 700/1220/2600 ↔ ee 350/2000/2900 Hz), anti-resonance notches
-  at the geometric means between them, and a slow ~0.3 Hz vowel morph whose depth
-  is Gamma — the organic "self-modulating filter-oid" character. Formant shifts
-  the vowel size by `2^(st/12)`.
-- **Morph** imprints the dry's fast (~2 ms) amplitude contour onto the wet:
-  transients pass through and sustained tails duck — Chroma-style clarity.
-- **De-harsh** — `ColourProcessor` runs a dynamic compressor on the ~3.8 kHz+ air
-  band, cutting only when it gets hot (≈6–8 kHz fizz control). Saturation is tanh
-  (bounded, no hard clip).
-- **Loudness makeup** — the core caps the processed level at ~1.2× the input
-  envelope, so pushing COLOR is loudness-neutral and never clips.
+- **Gamma** controls `PseudoFormantTone`.
+  The shaper uses three peaks between approximate `ah` formants (700 / 1220 / 2600 Hz) and `ee` formants (350 / 2000 / 2900 Hz), plus anti-resonance notches between them.
+  A slow ~0.3 Hz morph moves between the shapes, while Formant applies a `2^(st/12)` frequency ratio.
+- **Morph** transfers the dry signal's fast amplitude contour, approximately 2 ms, to the processed signal so attacks are retained while sustained tails can be reduced.
+- **De-harsh** applies dynamic compression to the high-frequency air band rather than a fixed cut.
+- **Level control** limits the processed envelope to roughly 1.2× the input envelope in the current implementation.
 
-## High Quality = STFT spectral snap (spec §12.3 / Phase 9)
+## High Quality: STFT spectral snap (spec §12.3 / Phase 9)
 
-`Quality = High Quality` runs `SpectralMapper`: a 2048-pt Hann overlap-add FFT
-(75% overlap) that snaps the active band to the grid — a bin is kept (and gently
-emphasised) if it *contains* an in-scale note, otherwise attenuated. "Contains a
-scale note" (rather than per-bin pitch-class rounding) preserves coarse low-freq
-bins so the bass isn't damaged. This adds `fftSize` latency, so the processor
-reports it and delays the dry + original-active paths through a `DelayLine` to keep
-the recombination aligned; `0 Latency` keeps the oscillator core (0 latency).
-The off-key-rejection is real (measured in/off tonality on an off-scale saw rises
-above the 0-Latency engine).
+`Quality = High Quality` uses `SpectralMapper`, a 2048-point Hann overlap-add FFT with 75% overlap.
+Within the active band, bins that contain target scale notes are retained or emphasized and other bins are attenuated.
+The implementation checks whether a bin contains a scale note instead of assigning every low-frequency bin to one rounded pitch class, which avoids over-attenuating coarse bass bins.
 
-## Latency reporting (export-correct)
+This mode adds `fftSize` samples of latency.
+The processor reports that latency and delays the dry and original-active paths with `DelayLine` so recombination remains aligned.
+`0 Latency` uses the oscillator/resonator path without that STFT delay.
 
-The reported latency must be set in `prepareToPlay` from the current Quality
-(0 Latency → 0, High Quality → STFT fftSize), because hosts query latency once
-after prepare — including for offline render/export. Setting it only from
-`processBlock` left export PDC reading a stale value, causing an audible delay.
-The dry path is delayed to match the STFT internally; an impulse probe confirms
-reported latency == actual latency in both modes (0 and 2048).
+In the development test signal, the measured in-grid/off-grid energy ratio was higher in High Quality mode than in the 0-Latency path.
 
-## Spectrum analyzer (UI)
+## Latency reporting
 
-`SpectrumAnalyzer` runs a 2048-pt magnitude FFT on the output (75% overlap) and
-writes 128 log-spaced, peak-smoothed bins to atomics. `VisualizerView` draws them
-as an EQ-style curve behind the pitch lanes (audio thread writes, UI reads).
+Latency is set from the selected Quality during `prepareToPlay` because hosts may query latency before audio processing begins, including during offline export.
+Updating it only from `processBlock` can leave export PDC with a stale value.
 
-## MVP simplifications
+The internal dry delay is set to match the STFT path.
+Impulse tests used during development measured 0 samples for 0 Latency mode and 2048 samples for the current High Quality configuration, matching the reported values.
 
-- Resonator coefficients update per block; glide is internal (~30 ms × character).
-- Multirate is a parameter placeholder (spec v1); Gate ducks the tail with input level.
-- `VisualizerView` is diagnostic only — no real spectral analysis (spec §6.5).
+## Spectrum analyzer
+
+`SpectrumAnalyzer` runs a 2048-point magnitude FFT on the output with 75% overlap.
+It writes 128 log-spaced, peak-smoothed bins to atomics for the UI thread.
+`VisualizerView` reads those values and draws the spectrum behind the pitch lanes.
+
+## Current simplifications
+
+- Resonator coefficients update once per block; per-character glide is handled internally and is approximately 30 ms.
+- Multirate is currently a parameter placeholder.
+- Gate controls the tail from input level.
